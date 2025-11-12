@@ -101,6 +101,22 @@ Both included templates (Minimalist Clean & Professional Modern) display:
 
 ### Quick Start
 
+**Option 1: Using Pre-built Docker Hub Images (Easiest)**
+```bash
+# Download docker-compose file
+curl -O https://raw.githubusercontent.com/leshicodes/Invio-Freelancer/main/docker-compose-hub.yml
+
+# Create .env file
+echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
+echo "ADMIN_USERNAME=admin" >> .env
+echo "ADMIN_PASSWORD=change-me" >> .env
+
+# Start services
+docker compose -f docker-compose-hub.yml up -d
+```
+
+**Option 2: Build from Source**
+```bash
 1. **Clone the repository**
    ```bash
    git clone https://github.com/leshicodes/Invio-Freelancer.git
@@ -130,6 +146,18 @@ Both included templates (Minimalist Clean & Professional Modern) display:
    - Username: `admin`
    - Password: `admin`
    - ⚠️ **Change these immediately in Settings!**
+
+### Docker Hub Images
+
+Pre-built images are available on Docker Hub:
+- **Backend**: `leshicodes/invio-freelancer-backend:latest`
+- **Frontend**: `leshicodes/invio-freelancer-frontend:latest`
+
+📖 **[View complete Docker deployment guide](./DOCKER.md)** for:
+- Production setup with reverse proxy (Nginx/Traefik)
+- Data backup strategies
+- Security best practices
+- Troubleshooting
 
 ### Configuration
 
