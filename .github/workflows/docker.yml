@@ -35,13 +35,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.11.1
 
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v3.5.0
         if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Ensure we have a lowercase owner/repo for all refs
       - name: Lowercase repository
@@ -55,6 +54,7 @@ jobs:
         with:
           images: |
             name=ghcr.io/${{ steps.repo.outputs.name }}-${{ matrix.image }},enable=true
+            name=leshicodes/invio-freelancer-${{ matrix.image }},enable=true
 
       - name: Copy VERSION into frontend build context
         if: ${{ matrix.image == 'frontend' }}
