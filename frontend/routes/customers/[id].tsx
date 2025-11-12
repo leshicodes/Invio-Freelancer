@@ -8,7 +8,7 @@ import {
   getAuthHeaderFromCookie,
 } from "../../utils/backend.ts";
 
-type Customer = { id: string; name?: string; contactName?: string; email?: string; address?: string; city?: string; postalCode?: string };
+type Customer = { id: string; name?: string; contactName?: string; email?: string; address?: string; city?: string; postalCode?: string; defaultHourlyRate?: number };
 type Data = { authed: boolean; customer?: Customer; error?: string };
 
 export const handler: Handlers<Data> = {
@@ -116,6 +116,11 @@ export default function CustomerDetail(props: PageProps<Data>) {
           {(c.city || c.postalCode) && (
             <div>
               <span class="opacity-70">City/Postal:</span> {c.city || ""} {c.postalCode ? `(${c.postalCode})` : ""}
+            </div>
+          )}
+          {c.defaultHourlyRate !== undefined && c.defaultHourlyRate > 0 && (
+            <div>
+              <span class="opacity-70">Default Hourly Rate:</span> ${c.defaultHourlyRate.toFixed(2)}/hr
             </div>
           )}
         </div>

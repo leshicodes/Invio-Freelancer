@@ -1,5 +1,6 @@
 import {
   calculateInvoiceTotals,
+  calculateTimeBasedLineTotal,
   generateDraftInvoiceNumber,
   getDatabase,
   getNextInvoiceNumber,
@@ -294,7 +295,44 @@ export const createInvoice = (
   for (let i = 0; i < data.items.length; i++) {
     const item = data.items[i];
     const itemId = generateUUID();
-    const lineTotal = item.quantity * item.unitPrice;
+    
+    // Calculate line total
+    let lineTotal: number;
+    
+    // Check if this is a time-based line item
+    if (item.hours !== undefined && item.hours > 0) {
+      // Time-based billing: get modifier multiplier
+      let modifierMultiplier = 1.0;
+      if (item.rateModifierId) {
+        const modifierResult = db.query(
+          "SELECT multiplier FROM rate_modifiers WHERE id = ?",
+          [item.rateModifierId],
+        ) as unknown[][];
+        if (modifierResult.length > 0) {
+          modifierMultiplier = Number(modifierResult[0][0]) || 1.0;
+        }
+      }
+      
+      // Get mileage rate from settings
+      let mileageRate = 0.70; // default
+      const mileageRateResult = db.query(
+        "SELECT value FROM settings WHERE key = 'mileageRate'",
+      ) as unknown[][];
+      if (mileageRateResult.length > 0) {
+        mileageRate = Number(mileageRateResult[0][0]) || 0.70;
+      }
+      
+      lineTotal = calculateTimeBasedLineTotal({
+        rate: item.rate || 0,
+        hours: item.hours || 0,
+        modifierMultiplier,
+        distance: item.distance,
+        mileageRate,
+      });
+    } else {
+      // Traditional quantity-based billing
+      lineTotal = (item.quantity ?? 0) * (item.unitPrice ?? 0);
+    }
 
     const invoiceItem: InvoiceItem = {
       id: itemId,
@@ -305,21 +343,30 @@ export const createInvoice = (
       lineTotal,
       notes: item.notes,
       sortOrder: i,
+      hours: item.hours,
+      rate: item.rate,
+      rateModifierId: item.rateModifierId,
+      distance: item.distance,
     };
 
     db.query(
       `INSERT INTO invoice_items (
-        id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
+        hours, rate, rate_modifier_id, distance
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         itemId,
         invoiceId,
         item.description,
-        item.quantity,
-        item.unitPrice,
+        item.quantity ?? null,
+        item.unitPrice ?? null,
         lineTotal,
         item.notes,
         i,
+        item.hours ?? null,
+        item.rate ?? null,
+        item.rateModifierId ?? null,
+        item.distance ?? null,
       ],
     );
 
@@ -349,6 +396,45 @@ export const createInvoice = (
         }
       }
     }
+  }
+
+  // Recalculate totals from actual line totals (for time-based billing support)
+  if (!hasPerLineTaxes) {
+    const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+    let finalDiscountAmount = Number(data.discountAmount) || 0;
+    if (data.discountPercentage && data.discountPercentage > 0) {
+      finalDiscountAmount = subtotal * (data.discountPercentage / 100);
+    }
+    finalDiscountAmount = Math.min(Math.max(finalDiscountAmount, 0), subtotal);
+    
+    const afterDiscount = subtotal - finalDiscountAmount;
+    const taxRate = (typeof data.taxRate === "number" ? data.taxRate : defaultTaxRate) || 0;
+    let taxAmount = 0;
+    let total = 0;
+    
+    if (data.pricesIncludeTax ?? defaultPricesIncludeTax) {
+      // Prices include tax - extract tax portion
+      const divisor = 1 + (taxRate / 100);
+      total = afterDiscount;
+      taxAmount = total - (total / divisor);
+    } else {
+      // Prices exclude tax - add tax on top
+      taxAmount = afterDiscount * (taxRate / 100);
+      total = afterDiscount + taxAmount;
+    }
+    
+    totals = {
+      subtotal: Math.round(subtotal * 100) / 100,
+      discountAmount: Math.round(finalDiscountAmount * 100) / 100,
+      taxAmount: Math.round(taxAmount * 100) / 100,
+      total: Math.round(total * 100) / 100,
+    };
+    
+    // Update invoice with recalculated totals
+    db.query(
+      `UPDATE invoices SET subtotal = ?, discount_amount = ?, tax_amount = ?, total = ? WHERE id = ?`,
+      [totals.subtotal, totals.discountAmount, totals.taxAmount, totals.total, invoiceId],
+    );
   }
 
   // Insert invoice-level tax summary if calculated
@@ -433,7 +519,8 @@ export const getInvoiceById = (id: string): InvoiceWithDetails | null => {
   // Get items
   const itemsResult = db.query(
     `
-    SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order
+    SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
+           hours, rate, rate_modifier_id, distance
     FROM invoice_items 
     WHERE invoice_id = ? 
     ORDER BY sort_order
@@ -450,6 +537,10 @@ export const getInvoiceById = (id: string): InvoiceWithDetails | null => {
     lineTotal: row[5] as number,
     notes: row[6] as string,
     sortOrder: row[7] as number,
+    hours: row[8] !== null ? row[8] as number : undefined,
+    rate: row[9] !== null ? row[9] as number : undefined,
+    rateModifierId: row[10] !== null ? row[10] as string : undefined,
+    distance: row[11] !== null ? row[11] as number : undefined,
   }));
 
   // Attach per-item taxes
@@ -536,7 +627,8 @@ export const getInvoiceByShareToken = (
   // Get items
   const itemsResult = db.query(
     `
-    SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order
+    SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
+           hours, rate, rate_modifier_id, distance
     FROM invoice_items 
     WHERE invoice_id = ? 
     ORDER BY sort_order
@@ -553,6 +645,10 @@ export const getInvoiceByShareToken = (
     lineTotal: row[5] as number,
     notes: row[6] as string,
     sortOrder: row[7] as number,
+    hours: row[8] !== null ? row[8] as number : undefined,
+    rate: row[9] !== null ? row[9] as number : undefined,
+    rateModifierId: row[10] !== null ? row[10] as string : undefined,
+    distance: row[11] !== null ? row[11] as number : undefined,
   }));
 
   // Attach per-item taxes
@@ -778,29 +874,85 @@ export const updateInvoice = async (
     db.query("DELETE FROM invoice_taxes WHERE invoice_id = ?", [id]);
     db.query("DELETE FROM invoice_items WHERE invoice_id = ?", [id]);
 
-    // Insert new items
+    // Insert new items with time-based calculation support
+    const updatedItems: InvoiceItem[] = [];
     for (let i = 0; i < data.items.length; i++) {
       const item = data.items[i];
       const itemId = generateUUID();
-      const lineTotal = item.quantity * item.unitPrice;
+      
+      // Calculate line total (support both time-based and quantity-based)
+      let lineTotal: number;
+      
+      if (item.hours !== undefined && item.hours > 0) {
+        // Time-based billing
+        let modifierMultiplier = 1.0;
+        if (item.rateModifierId) {
+          const modifierResult = db.query(
+            "SELECT multiplier FROM rate_modifiers WHERE id = ?",
+            [item.rateModifierId],
+          ) as unknown[][];
+          if (modifierResult.length > 0) {
+            modifierMultiplier = Number(modifierResult[0][0]) || 1.0;
+          }
+        }
+        
+        let mileageRate = 0.70;
+        const mileageRateResult = db.query(
+          "SELECT value FROM settings WHERE key = 'mileageRate'",
+        ) as unknown[][];
+        if (mileageRateResult.length > 0) {
+          mileageRate = Number(mileageRateResult[0][0]) || 0.70;
+        }
+        
+        lineTotal = calculateTimeBasedLineTotal({
+          rate: item.rate || 0,
+          hours: item.hours || 0,
+          modifierMultiplier,
+          distance: item.distance,
+          mileageRate,
+        });
+      } else {
+        // Traditional quantity-based billing
+        lineTotal = (item.quantity ?? 0) * (item.unitPrice ?? 0);
+      }
 
       db.query(
         `
         INSERT INTO invoice_items (
-          id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
+          hours, rate, rate_modifier_id, distance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           itemId,
           id,
           item.description,
-          item.quantity,
-          item.unitPrice,
+          item.quantity ?? null,
+          item.unitPrice ?? null,
           lineTotal,
           item.notes,
           i,
+          item.hours ?? null,
+          item.rate ?? null,
+          item.rateModifierId ?? null,
+          item.distance ?? null,
         ],
       );
+
+      updatedItems.push({
+        id: itemId,
+        invoiceId: id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal,
+        notes: item.notes,
+        sortOrder: i,
+        hours: item.hours,
+        rate: item.rate,
+        rateModifierId: item.rateModifierId,
+        distance: item.distance,
+      });
 
       if (perLineCalcUpdate) {
         const calc = perLineCalcUpdate.perItem[i];
@@ -827,6 +979,44 @@ export const updateInvoice = async (
           }
         }
       }
+    }
+
+    // Recalculate totals from actual line totals (for time-based billing support)
+    if (!perLineCalcUpdate) {
+      const subtotal = updatedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+      let finalDiscountAmount = Number(data.discountAmount ?? existing.discountAmount) || 0;
+      const discountPercentage = data.discountPercentage ?? existing.discountPercentage;
+      if (discountPercentage && discountPercentage > 0) {
+        finalDiscountAmount = subtotal * (discountPercentage / 100);
+      }
+      finalDiscountAmount = Math.min(Math.max(finalDiscountAmount, 0), subtotal);
+      
+      const afterDiscount = subtotal - finalDiscountAmount;
+      const taxRate = data.taxRate ?? existing.taxRate;
+      let taxAmount = 0;
+      let total = 0;
+      
+      const pricesIncludeTax = data.pricesIncludeTax ?? existing.pricesIncludeTax ?? false;
+      if (pricesIncludeTax) {
+        total = afterDiscount;
+        taxAmount = total - (total / (1 + (taxRate / 100)));
+      } else {
+        taxAmount = afterDiscount * (taxRate / 100);
+        total = afterDiscount + taxAmount;
+      }
+      
+      totals = {
+        subtotal: Math.round(subtotal * 100) / 100,
+        discountAmount: Math.round(finalDiscountAmount * 100) / 100,
+        taxAmount: Math.round(taxAmount * 100) / 100,
+        total: Math.round(total * 100) / 100,
+      };
+      
+      // Update invoice with recalculated totals
+      db.query(
+        `UPDATE invoices SET subtotal = ?, discount_amount = ?, tax_amount = ?, total = ? WHERE id = ?`,
+        [totals.subtotal, totals.discountAmount, totals.taxAmount, totals.total, id],
+      );
     }
 
     if (perLineCalcUpdate) {

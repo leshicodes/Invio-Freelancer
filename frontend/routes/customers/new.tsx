@@ -39,6 +39,8 @@ export const handler: Handlers<Data> = {
     const postalCode = String(form.get("postalCode") || "");
     const taxId = String(form.get("taxId") || "");
     const countryCode = String(form.get("countryCode") || "");
+    const defaultHourlyRateStr = String(form.get("defaultHourlyRate") || "0");
+    const defaultHourlyRate = parseFloat(defaultHourlyRateStr) || 0;
 
     if (!name) return new Response("Name is required", { status: 400 });
 
@@ -53,6 +55,7 @@ export const handler: Handlers<Data> = {
         postalCode,
         taxId,
         countryCode,
+        defaultHourlyRate,
       }) as { id: string };
       return new Response(null, {
         status: 303,
@@ -158,6 +161,21 @@ export default function NewCustomerPage(props: PageProps<Data>) {
               <span class="label-text">{t("Country Code (ISO alpha-2)")}</span>
             </div>
             <input name="countryCode" class="input input-bordered w-full" maxlength={2} placeholder={t("Country code placeholder")} data-writable />
+          </label>
+          <label class="form-control">
+            <div class="label">
+              <span class="label-text">{t("Default Hourly Rate")} ($/hr)</span>
+              <span class="label-text-alt">{t("Used as default for invoices")}</span>
+            </div>
+            <input 
+              name="defaultHourlyRate" 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              defaultValue="0" 
+              class="input input-bordered w-full" 
+              data-writable 
+            />
           </label>
         </div>
       </form>

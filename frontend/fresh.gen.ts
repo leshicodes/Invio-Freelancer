@@ -7,6 +7,9 @@ import * as $_middleware from "./routes/_middleware.ts";
 import * as $api_admin_export_full from "./routes/api/admin/export/full.ts";
 import * as $api_auth_login from "./routes/api/auth/login.ts";
 import * as $api_templates_install from "./routes/api/templates/install.ts";
+import * as $api_v1_rate_modifiers from "./routes/api/v1/rate-modifiers.ts";
+import * as $api_v1_rate_modifiers_id_ from "./routes/api/v1/rate-modifiers/[id].ts";
+import * as $api_v1_settings from "./routes/api/v1/settings.ts";
 import * as $customers_id_ from "./routes/customers/[id].tsx";
 import * as $customers_id_cannot_delete from "./routes/customers/[id]/cannot-delete.tsx";
 import * as $customers_id_edit from "./routes/customers/[id]/edit.tsx";
@@ -38,6 +41,7 @@ import * as $ExportAll from "./islands/ExportAll.tsx";
 import * as $InstallTemplateForm from "./islands/InstallTemplateForm.tsx";
 import * as $InvoiceEditorIsland from "./islands/InvoiceEditorIsland.tsx";
 import * as $InvoiceFormButton from "./islands/InvoiceFormButton.tsx";
+import * as $RateModifiersManager from "./islands/RateModifiersManager.tsx";
 import * as $SettingsEnhancements from "./islands/SettingsEnhancements.tsx";
 import * as $SettingsNav from "./islands/SettingsNav.tsx";
 import * as $ThemeToggle from "./islands/ThemeToggle.tsx";
@@ -50,6 +54,9 @@ const manifest = {
     "./routes/api/admin/export/full.ts": $api_admin_export_full,
     "./routes/api/auth/login.ts": $api_auth_login,
     "./routes/api/templates/install.ts": $api_templates_install,
+    "./routes/api/v1/rate-modifiers.ts": $api_v1_rate_modifiers,
+    "./routes/api/v1/rate-modifiers/[id].ts": $api_v1_rate_modifiers_id_,
+    "./routes/api/v1/settings.ts": $api_v1_settings,
     "./routes/customers/[id].tsx": $customers_id_,
     "./routes/customers/[id]/cannot-delete.tsx": $customers_id_cannot_delete,
     "./routes/customers/[id]/edit.tsx": $customers_id_edit,
@@ -88,6 +95,7 @@ const manifest = {
     "./islands/InstallTemplateForm.tsx": $InstallTemplateForm,
     "./islands/InvoiceEditorIsland.tsx": $InvoiceEditorIsland,
     "./islands/InvoiceFormButton.tsx": $InvoiceFormButton,
+    "./islands/RateModifiersManager.tsx": $RateModifiersManager,
     "./islands/SettingsEnhancements.tsx": $SettingsEnhancements,
     "./islands/SettingsNav.tsx": $SettingsNav,
     "./islands/ThemeToggle.tsx": $ThemeToggle,

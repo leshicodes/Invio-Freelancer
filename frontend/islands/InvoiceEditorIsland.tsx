@@ -9,11 +9,22 @@ import {
 import { LuGripVertical, LuPlus, LuSave } from "../components/icons.tsx";
 import { formatMoney } from "../utils/format.ts";
 
-type Customer = { id: string; name: string };
+type Customer = { id: string; name: string; defaultHourlyRate?: number };
+type RateModifier = {
+  id: string;
+  name: string;
+  multiplier: number;
+  description: string;
+  isDefault: boolean;
+};
 type IncomingItem = {
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity?: number; // Keep for backward compatibility
+  unitPrice?: number; // Keep for backward compatibility
+  hours?: number;
+  rate?: number;
+  rateModifierId?: string;
+  distance?: number;
   notes?: string;
   taxPercent?: number;
 };
@@ -47,8 +58,10 @@ export type InvoiceEditorProps = {
 type ItemState = {
   id: string;
   description: string;
-  quantity: string;
-  unitPrice: string;
+  hours: string;
+  rate: string;
+  rateModifierId: string;
+  distance: string;
   notes: string;
   taxPercent: string;
 };
@@ -75,8 +88,12 @@ function mapItem(item?: IncomingItem): ItemState {
   return {
     id: nextItemId(),
     description: item?.description ?? "",
-    quantity: item ? String(item.quantity ?? 1) : "1",
-    unitPrice: item ? String(item.unitPrice ?? 0) : "0",
+    hours: item?.hours !== undefined ? String(item.hours) : 
+           item?.quantity !== undefined ? String(item.quantity) : "0", // Backward compatibility
+    rate: item?.rate !== undefined ? String(item.rate) : 
+          item?.unitPrice !== undefined ? String(item.unitPrice) : "0", // Backward compatibility
+    rateModifierId: item?.rateModifierId ?? "", // Will be set to default after modifiers load
+    distance: item?.distance !== undefined ? String(item.distance) : "",
     notes: item?.notes ?? "",
     taxPercent: item && typeof item.taxPercent === "number"
       ? String(item.taxPercent)
@@ -150,6 +167,11 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
   const [dropIndicator, setDropIndicator] = useState<
     { id: string; position: "before" | "after" } | null
   >(null);
+  
+  // Time-based billing state
+  const [rateModifiers, setRateModifiers] = useState<RateModifier[]>([]);
+  const [mileageRate, setMileageRate] = useState<number>(0.70); // Default federal rate
+  const [defaultModifierId, setDefaultModifierId] = useState<string>("");
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -164,9 +186,62 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     setItems(next);
   }, [props.items]);
 
-  const handleAddItem = useCallback(() => {
-    setItems((prev) => [...prev, mapItem()]);
+  // Load rate modifiers on mount
+  useEffect(() => {
+    async function loadRateModifiers() {
+      try {
+        const response = await fetch("/api/v1/rate-modifiers");
+        if (response.ok) {
+          const modifiers: RateModifier[] = await response.json();
+          setRateModifiers(modifiers);
+          const defaultMod = modifiers.find(m => m.isDefault);
+          if (defaultMod) {
+            setDefaultModifierId(defaultMod.id);
+            // Update items that don't have a modifier set
+            setItems(prev => prev.map(item => 
+              item.rateModifierId === "" ? { ...item, rateModifierId: defaultMod.id } : item
+            ));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load rate modifiers:", error);
+      }
+    }
+    loadRateModifiers();
   }, []);
+
+  // Load mileage rate setting on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/v1/settings");
+        if (response.ok) {
+          const settings = await response.json();
+          // Settings API returns object with key-value pairs, not array
+          if (settings.mileageRate) {
+            setMileageRate(parseFloat(settings.mileageRate));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleAddItem = useCallback(() => {
+    const newItem = mapItem();
+    // Set default modifier if available
+    if (defaultModifierId) {
+      newItem.rateModifierId = defaultModifierId;
+    }
+    // Set customer's default hourly rate if available
+    const customer = props.customers?.find(c => c.id === selectedCustomerId);
+    if (customer && customer.defaultHourlyRate) {
+      newItem.rate = String(customer.defaultHourlyRate);
+    }
+    setItems((prev) => [...prev, newItem]);
+  }, [defaultModifierId, props.customers, selectedCustomerId]);
 
   const handleRemoveItem = useCallback((id: string) => {
     setItems((prev) => {
@@ -197,8 +272,16 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     setSelectedCustomerId(value);
     if (value !== "__create__") {
       setInlineCustomer({ ...blankInlineCustomer });
+      // Auto-fill rate from customer's default
+      const customer = props.customers?.find(c => c.id === value);
+      if (customer && customer.defaultHourlyRate) {
+        setItems(prev => prev.map(item => ({
+          ...item,
+          rate: String(customer.defaultHourlyRate)
+        })));
+      }
     }
-  }, []);
+  }, [props.customers]);
 
   const handleInlineCustomerChange = useCallback(
     (field: keyof InlineCustomer) => (event: Event) => {
@@ -237,9 +320,20 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     let tax = 0;
 
     items.forEach((item) => {
-      const quantity = parseFloat(item.quantity) || 0;
-      const unitPrice = parseFloat(item.unitPrice) || 0;
-      let lineTotal = quantity * unitPrice;
+      // Time-based billing calculation: (Rate × Hours × Modifier) + (Distance × Mileage Rate)
+      const hours = parseFloat(item.hours) || 0;
+      const rate = parseFloat(item.rate) || 0;
+      const distance = parseFloat(item.distance) || 0;
+      
+      // Find modifier multiplier
+      const modifier = rateModifiers.find(m => m.id === item.rateModifierId);
+      const multiplier = modifier ? modifier.multiplier : 1.0;
+      
+      // Calculate line total
+      const basePay = rate * hours * multiplier;
+      const mileagePay = distance * mileageRate;
+      let lineTotal = basePay + mileagePay;
+      
       if (roundingMode === "line") {
         lineTotal = round2(lineTotal);
       }
@@ -302,6 +396,8 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     pricesIncludeTax,
     roundingMode,
     taxMode,
+    rateModifiers,
+    mileageRate,
   ]);
 
   const handleDragStart = useCallback(
@@ -728,14 +824,16 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
         <div class="items-header hidden lg:flex flex-row flex-nowrap items-center gap-2 mb-1 text-xs text-base-content/60 font-medium">
           <div class="w-6 shrink-0"></div>
           <div class="flex-1 min-w-0 pl-3">Description</div>
-          <div class="w-16 sm:w-20 shrink-0 text-center">Quantity</div>
-          <div class="w-24 shrink-0 text-center">Price</div>
+          <div class="w-20 shrink-0 text-center">Hours</div>
+          <div class="w-24 shrink-0 text-center">Rate ($/hr)</div>
+          <div class="w-32 shrink-0 text-center">Modifier</div>
+          <div class="w-20 shrink-0 text-center">Miles</div>
           <div
             class={`w-24 shrink-0 text-center per-line-tax-input ${taxMode === "line" ? "" : "hidden"}`}
           >
             Tax %
           </div>
-          <div class="w-40 max-w-xs shrink-0 text-center">Notes</div>
+          <div class="w-32 max-w-xs shrink-0 text-center">Notes</div>
           <div class="w-8 shrink-0"></div>
         </div>
 
@@ -784,28 +882,60 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                       />
                       <div class="grid grid-cols-2 gap-2">
                         <div>
-                          <label class="label py-1"><span class="label-text text-xs">Quantity</span></label>
+                          <label class="label py-1"><span class="label-text text-xs">Hours</span></label>
                           <input
                             type="number"
                             step="0.01"
                             min="0"
-                            name={`item_${index}_quantity`}
-                            value={item.quantity}
+                            name={`item_${index}_hours`}
+                            value={item.hours}
                             class="input input-bordered w-full input-sm"
-                            onInput={handleItemChange(index, "quantity")}
+                            onInput={handleItemChange(index, "hours")}
                             data-writable
                           />
                         </div>
                         <div>
-                          <label class="label py-1"><span class="label-text text-xs">Price</span></label>
+                          <label class="label py-1"><span class="label-text text-xs">Rate ($/hr)</span></label>
                           <input
                             type="number"
                             step="0.01"
                             min="0"
-                            name={`item_${index}_unitPrice`}
-                            value={item.unitPrice}
+                            name={`item_${index}_rate`}
+                            value={item.rate}
                             class="input input-bordered w-full input-sm"
-                            onInput={handleItemChange(index, "unitPrice")}
+                            onInput={handleItemChange(index, "rate")}
+                            data-writable
+                          />
+                        </div>
+                      </div>
+                      <div class="grid grid-cols-2 gap-2">
+                        <div>
+                          <label class="label py-1"><span class="label-text text-xs">Modifier</span></label>
+                          <select
+                            name={`item_${index}_rateModifierId`}
+                            value={item.rateModifierId}
+                            class="select select-bordered w-full select-sm"
+                            onInput={handleItemChange(index, "rateModifierId")}
+                            data-writable
+                          >
+                            {rateModifiers.map(mod => (
+                              <option key={mod.id} value={mod.id}>
+                                {mod.name} ({mod.multiplier}x)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label class="label py-1"><span class="label-text text-xs">Miles (optional)</span></label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name={`item_${index}_distance`}
+                            value={item.distance}
+                            placeholder="0"
+                            class="input input-bordered w-full input-sm"
+                            onInput={handleItemChange(index, "distance")}
                             data-writable
                           />
                         </div>
@@ -872,20 +1002,46 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                     type="number"
                     step="0.01"
                     min="0"
-                    name={`item_${index}_quantity`}
-                    value={item.quantity}
-                    class="input input-bordered w-16 sm:w-20 shrink-0"
-                    onInput={handleItemChange(index, "quantity")}
+                    name={`item_${index}_hours`}
+                    value={item.hours}
+                    placeholder="0"
+                    class="input input-bordered w-20 shrink-0"
+                    onInput={handleItemChange(index, "hours")}
                     data-writable
                   />
                   <input
                     type="number"
                     step="0.01"
                     min="0"
-                    name={`item_${index}_unitPrice`}
-                    value={item.unitPrice}
+                    name={`item_${index}_rate`}
+                    value={item.rate}
+                    placeholder="0"
                     class="input input-bordered w-24 shrink-0"
-                    onInput={handleItemChange(index, "unitPrice")}
+                    onInput={handleItemChange(index, "rate")}
+                    data-writable
+                  />
+                  <select
+                    name={`item_${index}_rateModifierId`}
+                    value={item.rateModifierId}
+                    class="select select-bordered w-32 shrink-0"
+                    onInput={handleItemChange(index, "rateModifierId")}
+                    data-writable
+                  >
+                    {rateModifiers.map(mod => (
+                      <option key={mod.id} value={mod.id}>
+                        {mod.name} ({mod.multiplier}x)
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    name={`item_${index}_distance`}
+                    value={item.distance}
+                    placeholder="0"
+                    class="input input-bordered w-20 shrink-0"
+                    onInput={handleItemChange(index, "distance")}
                     data-writable
                   />
                   <input

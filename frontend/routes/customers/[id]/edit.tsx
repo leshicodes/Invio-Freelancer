@@ -18,6 +18,7 @@ type Customer = {
   countryCode?: string;
   city?: string;
   postalCode?: string;
+  defaultHourlyRate?: number;
 };
 type Data = { authed: boolean; customer?: Customer; error?: string };
 
@@ -65,6 +66,7 @@ export const handler: Handlers<Data> = {
       postalCode: String(form.get("postalCode") || ""),
       taxId: String(form.get("taxId") || ""),
       countryCode: String(form.get("countryCode") || ""),
+      defaultHourlyRate: parseFloat(String(form.get("defaultHourlyRate") || "0")) || 0,
     };
     if (!payload.name) return new Response("Name is required", { status: 400 });
     try {
@@ -219,6 +221,22 @@ export default function EditCustomerPage(props: PageProps<Data>) {
                 class="input input-bordered w-full"
                 maxlength={2}
                 placeholder="e.g. US, NL, DE"
+                data-writable
+                disabled={demoMode}
+              />
+            </label>
+            <label class="form-control">
+              <div class="label">
+                <span class="label-text">Default Hourly Rate ($/hr)</span>
+                <span class="label-text-alt">Used as default for invoices</span>
+              </div>
+              <input
+                name="defaultHourlyRate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={c.defaultHourlyRate || 0}
+                class="input input-bordered w-full"
                 data-writable
                 disabled={demoMode}
               />

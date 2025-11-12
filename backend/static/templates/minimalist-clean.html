@@ -372,8 +372,10 @@
         <thead>
           <tr>
             <th>{{labels.itemHeaderDescription}}</th>
-            <th>{{labels.itemHeaderQuantityShort}}</th>
-            <th>{{labels.itemHeaderUnitPriceShort}}</th>
+            <th>Hours</th>
+            <th>Rate ($/hr)</th>
+            <th>Modifier</th>
+            <th>Miles</th>
             <th>{{labels.itemHeaderAmount}}</th>
           </tr>
         </thead>
@@ -384,8 +386,10 @@
               <div class="item-description">{{description}}</div>
               {{#notes}}<div class="item-notes">{{notes}}</div>{{/notes}}
             </td>
-            <td>{{quantity}}</td>
-            <td>{{currency}} {{unitPrice}}</td>
+            <td>{{hours}}</td>
+            <td>{{currency}} {{rate}}</td>
+            <td>{{rateModifierName}}{{#rateModifierMultiplier}} ({{rateModifierMultiplier}}x){{/rateModifierMultiplier}}</td>
+            <td>{{distance || '-'}}</td>
             <td>{{currency}} {{lineTotal}}</td>
           </tr>
           {{/items}}

@@ -26,7 +26,24 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('peppolSellerEndpointId', ''),
   ('peppolSellerEndpointSchemeId', ''),
   ('peppolBuyerEndpointId', ''),
-  ('peppolBuyerEndpointSchemeId', '');
+  ('peppolBuyerEndpointSchemeId', ''),
+  -- Mileage rate for time-based billing (default federal standard rate)
+  ('mileageRate', '0.70');
+
+-- Rate modifiers for time-based billing (e.g., Holiday, Weekend, Overnight)
+CREATE TABLE IF NOT EXISTS rate_modifiers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  multiplier NUMERIC NOT NULL DEFAULT 1.0,
+  description TEXT,
+  is_default BOOLEAN DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default rate modifier
+INSERT OR IGNORE INTO rate_modifiers (id, name, multiplier, description, is_default) VALUES 
+  ('standard', 'Standard', 1.0, 'Regular daytime work', 1);
 
 -- Enhanced customers table
 CREATE TABLE customers (
@@ -38,6 +55,7 @@ CREATE TABLE customers (
   address TEXT,
   country_code TEXT,
   tax_id TEXT,
+  default_hourly_rate NUMERIC DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -74,11 +92,16 @@ CREATE TABLE invoice_items (
   id TEXT PRIMARY KEY,
   invoice_id TEXT REFERENCES invoices(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
-  quantity NUMERIC NOT NULL,
-  unit_price NUMERIC NOT NULL,
+  quantity NUMERIC DEFAULT 0,
+  unit_price NUMERIC DEFAULT 0,
   line_total NUMERIC NOT NULL,
   notes TEXT,
-  sort_order INTEGER DEFAULT 0
+  sort_order INTEGER DEFAULT 0,
+  -- Time-based billing fields
+  hours NUMERIC DEFAULT 0,
+  rate NUMERIC DEFAULT 0,
+  rate_modifier_id TEXT REFERENCES rate_modifiers(id),
+  distance NUMERIC DEFAULT 0
 );
 
 -- Invoice attachments (optional)

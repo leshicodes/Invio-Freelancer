@@ -15,7 +15,11 @@
 # VS Code MCP configuration (contains sensitive API keys)
 .vscode/mcp.json
 
+.github/instructions/
+
 /frontend/static/dev
 /frontend/VERSION
 
 /Invio.wiki
+
+README.md.backup

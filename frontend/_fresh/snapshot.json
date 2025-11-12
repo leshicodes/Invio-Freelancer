@@ -1,64 +1,114 @@
 {
-  "build_id": "f27d0c4b2a31b97504b3fd780db4883ec2f5dcac",
+  "build_id": "708a4728d298fd1ea09bc251cc3f7684dd8fe505",
   "files": {
     "island-installtemplateform.js": [
-      "chunk-BYRZ2NRM.js",
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-invoiceeditorisland.js": [
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-KAA6IOTS.js",
+      "chunk-MEABNXAK.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
+    ],
+    "island-invoiceformbutton.js": [
+      "chunk-KAA6IOTS.js",
+      "chunk-MEABNXAK.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
+    ],
+    "island-ratemodifiersmanager.js": [
+      "chunk-KAA6IOTS.js",
+      "chunk-HV3NM47B.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-settingsenhancements.js": [
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
+    ],
+    "island-settingsnav.js": [
+      "chunk-KAA6IOTS.js",
+      "chunk-MEABNXAK.js",
+      "chunk-V66ALGLP.js"
+    ],
+    "chunk-KAA6IOTS.js": [
+      "chunk-MEABNXAK.js"
     ],
     "island-themetoggle.js": [
-      "chunk-BYRZ2NRM.js",
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "main.js": [
       "chunk-GI7LLYGM.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-V66ALGLP.js"
     ],
     "deserializer.js": [],
     "signals.js": [
+      "chunk-HV3NM47B.js",
       "chunk-GI7LLYGM.js",
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
-    "chunk-GI7LLYGM.js": [],
+    "chunk-HV3NM47B.js": [
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
+    ],
     "island-breadcrumbs.js": [
-      "chunk-BYRZ2NRM.js",
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-confirmonsubmit.js": [
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-copypubliclink.js": [
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-demomodedisabler.js": [
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
     "island-exportall.js": [
-      "chunk-BYRZ2NRM.js",
-      "chunk-G4CPWP5O.js",
-      "chunk-JP5XG2OT.js"
+      "chunk-YCQQLIGB.js",
+      "chunk-MEABNXAK.js",
+      "chunk-GI7LLYGM.js",
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
-    "chunk-BYRZ2NRM.js": [
-      "chunk-JP5XG2OT.js"
+    "chunk-YCQQLIGB.js": [
+      "chunk-CZQZNIMN.js",
+      "chunk-V66ALGLP.js"
     ],
-    "chunk-G4CPWP5O.js": [
-      "chunk-JP5XG2OT.js"
+    "chunk-MEABNXAK.js": [
+      "chunk-V66ALGLP.js"
     ],
-    "chunk-JP5XG2OT.js": [],
+    "chunk-GI7LLYGM.js": [],
+    "chunk-CZQZNIMN.js": [
+      "chunk-V66ALGLP.js"
+    ],
+    "chunk-V66ALGLP.js": [],
     "metafile.json": []
   }
 }

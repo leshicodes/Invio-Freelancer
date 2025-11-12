@@ -34,6 +34,13 @@ import {
   getCustomers,
   updateCustomer,
 } from "../controllers/customers.ts";
+import {
+  createRateModifier,
+  deleteRateModifier,
+  getRateModifierById,
+  getRateModifiers,
+  updateRateModifier,
+} from "../controllers/rate_modifiers.ts";
 import { buildInvoiceHTML, generatePDF } from "../utils/pdf.ts";
 import { generateUBLInvoiceXML } from "../utils/ubl.ts"; // legacy direct import
 import { generateInvoiceXML, listXMLProfiles } from "../utils/xmlProfiles.ts";
@@ -613,6 +620,47 @@ adminRoutes.delete("/customers/:id", async (c) => {
   const id = c.req.param("id");
   await deleteCustomer(id);
   return c.json({ success: true });
+});
+
+// Rate Modifier routes
+adminRoutes.get("/rate-modifiers", async (c) => {
+  const modifiers = await getRateModifiers();
+  return c.json(modifiers);
+});
+
+adminRoutes.get("/rate-modifiers/:id", async (c) => {
+  const id = c.req.param("id");
+  const modifier = await getRateModifierById(id);
+  if (!modifier) {
+    return c.json({ error: "Rate modifier not found" }, 404);
+  }
+  return c.json(modifier);
+});
+
+adminRoutes.post("/rate-modifiers", async (c) => {
+  const data = await c.req.json();
+  const modifier = await createRateModifier(data);
+  return c.json(modifier);
+});
+
+adminRoutes.put("/rate-modifiers/:id", async (c) => {
+  const id = c.req.param("id");
+  const data = await c.req.json();
+  const modifier = await updateRateModifier(id, data);
+  if (!modifier) {
+    return c.json({ error: "Rate modifier not found" }, 404);
+  }
+  return c.json(modifier);
+});
+
+adminRoutes.delete("/rate-modifiers/:id", async (c) => {
+  const id = c.req.param("id");
+  try {
+    await deleteRateModifier(id);
+    return c.json({ success: true });
+  } catch (error) {
+    return c.json({ error: String(error) }, 400);
+  }
 });
 
 // Authenticated HTML/PDF generation for invoices by ID (no share token required)

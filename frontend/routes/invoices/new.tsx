@@ -10,7 +10,11 @@ import {
 } from "../../utils/backend.ts";
 import { useTranslations } from "../../i18n/context.tsx";
 
-type Customer = { id: string; name: string };
+type Customer = { 
+  id: string; 
+  name: string;
+  defaultHourlyRate?: number;
+};
 type Data = {
   authed: boolean;
   customers?: Customer[];
@@ -28,8 +32,12 @@ type Data = {
 
 type Item = {
   description: string;
-  quantity: number;
-  unitPrice: number;
+  hours?: number;
+  rate?: number;
+  rateModifierId?: string;
+  distance?: number;
+  quantity?: number; // Backward compatibility
+  unitPrice?: number; // Backward compatibility
   notes?: string;
   taxes?: { percent: number }[];
 };
@@ -133,12 +141,19 @@ export const handler: Handlers<Data> = {
         i++;
         continue;
       }
-      const quantity = parseFloat(
-        (form.get(`item_${i}_quantity`) as string) || "1",
+      
+      // Time-based billing fields
+      const hours = parseFloat(
+        (form.get(`item_${i}_hours`) as string) || "0",
       );
-      const unitPrice = parseFloat(
-        (form.get(`item_${i}_unitPrice`) as string) || "0",
+      const rate = parseFloat(
+        (form.get(`item_${i}_rate`) as string) || "0",
       );
+      const rateModifierId = form.get(`item_${i}_rateModifierId`) as string | undefined;
+      const distance = parseFloat(
+        (form.get(`item_${i}_distance`) as string) || "0",
+      );
+      
       const itemNotes = form.get(`item_${i}_notes`) as string | undefined;
       const taxPercent = parseFloat(
         (form.get(`item_${i}_tax_percent`) as string) || "0",
@@ -146,8 +161,10 @@ export const handler: Handlers<Data> = {
 
       const item: Item = {
         description,
-        quantity,
-        unitPrice,
+        hours,
+        rate,
+        rateModifierId,
+        distance: distance > 0 ? distance : undefined,
         notes: itemNotes,
       };
 
@@ -326,7 +343,7 @@ export default function NewInvoicePage(props: PageProps<Data>) {
           paymentTerms={paymentTerms}
           notes={defaultNotes}
           demoMode={demoMode}
-          items={[{ description: "", quantity: 1, unitPrice: 0 }]}
+          items={[]}
           showDates
           taxRate={defaultTaxRate}
           pricesIncludeTax={defaultPricesIncludeTax}

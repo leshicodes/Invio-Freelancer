@@ -21,6 +21,7 @@ import {
 import { getDefaultTemplate } from "../controllers/templates.ts";
 import { resolveChromiumLaunchConfig } from "./chromium.ts";
 import { getInvoiceLabels } from "../i18n/translations.ts";
+import { getDatabase } from "../database/init.ts";
 // pdf-lib is used to embed XML attachments and tweak metadata after rendering
 
 // ---- Basic color helpers ----
@@ -241,13 +242,44 @@ function buildContext(
     customerTaxId: invoice.customer.taxId,
 
     // Items
-    items: invoice.items.map((i) => ({
-      description: i.description,
-      quantity: i.quantity,
-      unitPrice: formatMoney(i.unitPrice, currency, numberFormat || "comma"),
-      lineTotal: formatMoney(i.lineTotal, currency, numberFormat || "comma"),
-      notes: i.notes,
-    })),
+    items: invoice.items.map((i) => {
+      // Fetch rate modifier details if present
+      let rateModifierName = "";
+      let rateModifierMultiplier = "";
+      if (i.rateModifierId) {
+        try {
+          const db = getDatabase();
+          const result = db.query(
+            "SELECT name, multiplier FROM rate_modifiers WHERE id = ?",
+            [i.rateModifierId],
+          ) as unknown[][];
+          if (result.length > 0) {
+            rateModifierName = String(result[0][0]);
+            rateModifierMultiplier = String(result[0][1]);
+          }
+        } catch (e) {
+          console.error("Failed to fetch rate modifier:", e);
+        }
+      }
+      
+      return {
+        description: i.description,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice !== undefined
+          ? formatMoney(i.unitPrice, currency, numberFormat || "comma")
+          : undefined,
+        lineTotal: formatMoney(i.lineTotal, currency, numberFormat || "comma"),
+        notes: i.notes,
+        // Time-based fields
+        hours: i.hours,
+        rate: i.rate !== undefined
+          ? formatMoney(i.rate, currency, numberFormat || "comma")
+          : undefined,
+        rateModifierName,
+        rateModifierMultiplier,
+        distance: i.distance,
+      };
+    }),
 
     // Totals
     subtotal: formatMoney(invoice.subtotal, currency, numberFormat || "comma"),
