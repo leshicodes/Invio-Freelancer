@@ -10,6 +10,7 @@ export interface Customer {
   countryCode?: string; // ISO 3166-1 alpha-2
   taxId?: string;
   reference?: string; // BuyerReference or order ref
+  defaultHourlyRate?: number; // Default hourly rate for time-based billing
   createdAt: Date;
 }
 
@@ -51,12 +52,17 @@ export interface InvoiceItem {
   id: string;
   invoiceId: string;
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity?: number; // Optional - for backward compatibility with product-based billing
+  unitPrice?: number; // Optional - for backward compatibility with product-based billing
   lineTotal: number;
   notes?: string;
   sortOrder: number;
   taxes?: InvoiceItemTax[];
+  // Time-based billing fields
+  hours?: number;
+  rate?: number;
+  rateModifierId?: string;
+  distance?: number;
 }
 
 export interface InvoiceAttachment {
@@ -75,6 +81,16 @@ export interface Template {
   html: string;
   isDefault: boolean;
   createdAt: Date;
+}
+
+export interface RateModifier {
+  id: string;
+  name: string;
+  multiplier: number;
+  description?: string;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Setting {
@@ -157,9 +173,14 @@ export interface CreateInvoiceRequest {
   // Items
   items: {
     description: string;
-    quantity: number;
-    unitPrice: number;
+    quantity?: number; // Optional - for backward compatibility with product-based billing
+    unitPrice?: number; // Optional - for backward compatibility with product-based billing
     notes?: string;
+    // Time-based billing fields
+    hours?: number;
+    rate?: number;
+    rateModifierId?: string;
+    distance?: number;
     // Optional per-line taxes (advanced). If omitted, falls back to invoice-level taxRate
     taxes?: Array<{
       percent: number; // e.g., 20 for 20%
@@ -184,6 +205,7 @@ export interface CreateCustomerRequest {
   postalCode?: string;
   countryCode?: string; // ISO alpha-2
   taxId?: string;
+  defaultHourlyRate?: number;
 }
 
 export interface InvoiceWithDetails extends Invoice {

@@ -483,6 +483,29 @@ export interface CalculatedTotals {
   total: number;
 }
 
+/**
+ * Calculate line total for time-based billing
+ * Formula: (Rate × Hours × Modifier) + (Distance × Mileage Rate)
+ */
+export function calculateTimeBasedLineTotal(params: {
+  rate: number;
+  hours: number;
+  modifierMultiplier: number;
+  distance?: number;
+  mileageRate?: number;
+}): number {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  
+  // Calculate base pay with modifier
+  const basePay = (params.rate || 0) * (params.hours || 0) * (params.modifierMultiplier || 1);
+  
+  // Calculate mileage reimbursement
+  const mileage = (params.distance || 0) * (params.mileageRate || 0);
+  
+  // Total
+  return r2(basePay + mileage);
+}
+
 export function calculateInvoiceTotals(
   items: Array<{ quantity: number; unitPrice: number }>,
   discountPercentage: number = 0,
