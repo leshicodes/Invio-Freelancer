@@ -1,38 +1,34 @@
+name: invio
+
 services:
   backend:
-    image: leshicodes/invio-freelancer-backend:latest
-    container_name: invio-backend
-    restart: unless-stopped
+    image: leshicodes/invio-freelancer-backend:main
+    env_file:
+      - .env
     environment:
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - BASE_URL=${BASE_URL:-http://localhost:3000}
-    ports:
-      - "3000:3000"
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASS: ${ADMIN_PASS}
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_PATH: ${DATABASE_PATH:-/app/data/invio.db}
     volumes:
       - invio_data:/app/data
-    networks:
-      - invio_network
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    restart: unless-stopped
 
   frontend:
-    image: leshicodes/invio-freelancer-frontend:latest
-    container_name: invio-frontend
-    restart: unless-stopped
+    image: leshicodes/invio-freelancer-frontend:main
+    env_file:
+      - .env
     environment:
-      - BACKEND_URL=http://backend:3000
-      - DENO_DEPLOYMENT_ID=${DENO_DEPLOYMENT_ID:-local}
-    ports:
-      - "8000:8000"
+      PORT: ${FRONTEND_PORT_INTERNAL:-8000}
+      BACKEND_URL: ${BACKEND_URL:-http://backend:3000}
     depends_on:
       - backend
-    networks:
-      - invio_network
+    ports:
+      - "${FRONTEND_PORT:-8000}:${FRONTEND_PORT_INTERNAL:-8000}"
+    restart: unless-stopped
 
 volumes:
   invio_data:
     driver: local
-
-networks:
-  invio_network:
-    driver: bridge
