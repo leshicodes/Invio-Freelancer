@@ -374,7 +374,7 @@
             <th>{{labels.itemHeaderDescription}}</th>
             <th>Hours</th>
             <th>Rate ($/hr)</th>
-            <th>Modifier</th>
+            <th>Subtotal</th>
             <th>Miles</th>
             <th>{{labels.itemHeaderAmount}}</th>
           </tr>
@@ -387,8 +387,8 @@
               {{#notes}}<div class="item-notes">{{notes}}</div>{{/notes}}
             </td>
             <td>{{hours}}</td>
-            <td>{{currency}} {{rate}}</td>
-            <td>{{rateModifierName}}{{#rateModifierMultiplier}} ({{rateModifierMultiplier}}x){{/rateModifierMultiplier}}</td>
+            <td>{{currency}} {{adjustedRate}}</td>
+            <td>{{currency}} {{itemSubtotal}}</td>
             <td>{{distance || '-'}}</td>
             <td>{{currency}} {{lineTotal}}</td>
           </tr>

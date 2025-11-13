@@ -245,7 +245,7 @@ function buildContext(
     items: invoice.items.map((i) => {
       // Fetch rate modifier details if present
       let rateModifierName = "";
-      let rateModifierMultiplier = "";
+      let rateModifierMultiplier = 1; // Default to 1x if no modifier
       if (i.rateModifierId) {
         try {
           const db = getDatabase();
@@ -255,12 +255,38 @@ function buildContext(
           ) as unknown[][];
           if (result.length > 0) {
             rateModifierName = String(result[0][0]);
-            rateModifierMultiplier = String(result[0][1]);
+            rateModifierMultiplier = Number(result[0][1]);
           }
         } catch (e) {
           console.error("Failed to fetch rate modifier:", e);
         }
       }
+      
+      // Calculate adjusted rate (base rate × modifier)
+      const baseRate = i.rate || 0;
+      const adjustedRate = baseRate * rateModifierMultiplier;
+      
+      // Calculate item subtotal (hours × adjusted rate) - before mileage
+      const hours = i.hours || 0;
+      const itemSubtotal = hours * adjustedRate;
+      
+      // Calculate mileage cost
+      const distance = i.distance || 0;
+      // Get mileage rate from settings (default to 0.70 if not found)
+      let mileageRate = 0.70;
+      try {
+        const db = getDatabase();
+        const settingResult = db.query(
+          "SELECT value FROM settings WHERE key = ?",
+          ["mileageRate"],
+        ) as unknown[][];
+        if (settingResult.length > 0) {
+          mileageRate = Number(settingResult[0][0]);
+        }
+      } catch (e) {
+        console.error("Failed to fetch mileage rate:", e);
+      }
+      const mileageCost = distance * mileageRate;
       
       return {
         description: i.description,
@@ -275,8 +301,18 @@ function buildContext(
         rate: i.rate !== undefined
           ? formatMoney(i.rate, currency, numberFormat || "comma")
           : undefined,
+        // New calculated fields for transparent display
+        adjustedRate: adjustedRate > 0
+          ? formatMoney(adjustedRate, currency, numberFormat || "comma")
+          : undefined,
+        itemSubtotal: itemSubtotal > 0
+          ? formatMoney(itemSubtotal, currency, numberFormat || "comma")
+          : undefined,
+        mileageCost: mileageCost > 0
+          ? formatMoney(mileageCost, currency, numberFormat || "comma")
+          : undefined,
         rateModifierName,
-        rateModifierMultiplier,
+        rateModifierMultiplier: String(rateModifierMultiplier),
         distance: i.distance,
       };
     }),
