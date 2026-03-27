@@ -24,8 +24,8 @@ type Invoice = {
   id: string;
   invoiceNumber?: string;
   customer?: { name?: string };
-  issue_date?: string;
-  due_date?: string;
+  issueDate?: string | Date;
+  dueDate?: string | Date;
   items?: Item[];
   currency?: string;
   taxRate?: number;
@@ -115,11 +115,17 @@ export const handler: Handlers<Data> = {
         i++;
         continue;
       }
-      const quantity = parseFloat(
-        (form.get(`item_${i}_quantity`) as string) || "1",
+
+      // Time-based billing fields
+      const hours = parseFloat(
+        (form.get(`item_${i}_hours`) as string) || "0",
       );
-      const unitPrice = parseFloat(
-        (form.get(`item_${i}_unitPrice`) as string) || "0",
+      const rate = parseFloat(
+        (form.get(`item_${i}_rate`) as string) || "0",
+      );
+      const rateModifierId = form.get(`item_${i}_rateModifierId`) as string | undefined;
+      const distance = parseFloat(
+        (form.get(`item_${i}_distance`) as string) || "0",
       );
       const itemNotes = form.get(`item_${i}_notes`) as string | undefined;
       const taxPercent = parseFloat(
@@ -128,8 +134,10 @@ export const handler: Handlers<Data> = {
 
       const item: Item = {
         description,
-        quantity,
-        unitPrice,
+        hours,
+        rate,
+        rateModifierId: rateModifierId || undefined,
+        distance: distance > 0 ? distance : undefined,
         notes: itemNotes,
       };
 
@@ -239,12 +247,12 @@ export default function EditInvoicePage(props: PageProps<Data>) {
               ? "line"
               : "invoice"}
             showDates
-            issueDate={(inv.issue_date as string) || ""}
-            dueDate={(inv.due_date as string) || ""}
+            issueDate={inv.issueDate ? new Date(inv.issueDate).toISOString().slice(0, 10) : ""}
+            dueDate={inv.dueDate ? new Date(inv.dueDate).toISOString().slice(0, 10) : ""}
             notes={inv.notes}
             paymentTerms={inv.paymentTerms}
             items={(inv.items ||
-              [{ description: "", quantity: 1, unitPrice: 0 }]).map((it) => {
+              [{ description: "", hours: 0, rate: 0 }]).map((it) => {
                 // If item has single tax entry, surface its percent for UI
                 const single = it.taxes && it.taxes.length === 1
                   ? it.taxes[0].percent
