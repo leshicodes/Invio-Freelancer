@@ -25,6 +25,14 @@ The original Invio is designed for **product-based invoicing** (quantity × unit
 
 Rather than asking the upstream project to support this niche use case, this fork maintains the original's simplicity while adding freelancer-specific features.
 
+### What's Different
+
+- **Hours worked** with variable hourly rates per client
+- **Date and time tracking** per job — start/end time with overnight support
+- **Mileage reimbursement** for on-site work
+- **Per-line rate override** for special jobs that deviate from the standard rate
+- **Landscape & verbose PDFs** for detailed, professional billing
+
 ### Upstream Attribution
 
 All core architecture, design, and foundational code credit goes to **[kittendevv](https://github.com/kittendevv)** and the Invio contributors. This fork builds on their excellent work. ❤️
@@ -36,10 +44,12 @@ All core architecture, design, and foundational code credit goes to **[kittendev
 ## 🌟 Why Invio Freelancer?
 
 - **Time-based billing** — invoice by hours, not quantity. Perfect for interpreters, consultants, and service providers.
-- **Rate modifiers** — apply multipliers for holidays, weekends, overnight work, rush jobs, etc.
-- **Mileage tracking** — automatically calculate reimbursement at configurable rates (default: federal standard).
+- **Date & time tracking** — log start/end time per job (overnight-aware), with hours auto-calculated.
+- **Mileage tracking** — automatically calculate reimbursement at configurable rates (default: $0.725/mile).
 - **Customer default rates** — set hourly rates per client, auto-populate on new invoices.
-- **Automatic calculations** — no manual price entry. System calculates: `(Rate × Hours × Modifier) + (Miles × Mileage Rate)`.
+- **Per-line rate override** — quickly override the rate for any individual line item.
+- **Automatic calculations** — no manual price entry. System calculates: `(Rate × Hours) + (Miles × Mileage Rate)`.
+- **Landscape & verbose PDFs** — download invoices in portrait or landscape, with optional formula breakdown per line.
 - **You really own it** — self-hosted by default. Your data lives where you put it.
 - **Fast & dependable** — Deno + Fresh + Hono + SQLite keeps things simple and quick.
 - **Client-friendly** — share a secure public link—no accounts required to view invoices.
@@ -51,45 +61,44 @@ All core architecture, design, and foundational code credit goes to **[kittendev
 ### 1. Time-Based Line Items
 Instead of `Quantity × Unit Price`, invoices now use:
 ```
-Line Total = (Rate × Hours × Modifier) + (Distance × Mileage Rate)
+Line Total = (Rate × Hours) + (Distance × Mileage Rate)
 ```
 
 **Example:**
 - Rate: $50/hour
 - Hours: 2.5
-- Modifier: Holiday (1.5x)
-- Distance: 30 miles @ $0.70/mile
-- **Total: $208.50** = ($50 × 2.5 × 1.5) + (30 × $0.70)
+- Distance: 30 miles @ $0.725/mile
+- **Total: $146.75** = ($50 × 2.5) + (30 × $0.725)
 
 ### 2. Customer Default Rates
 Set a default hourly rate per customer (e.g., Hospital A = $50/hr, University B = $75/hr). New invoice line items auto-populate with the customer's rate.
 
-### 3. Rate Modifiers
-Create custom rate multipliers in Settings → Rate Modifiers:
-- **Standard** (1.0x) — regular daytime work
-- **Holiday** (1.5x) — holiday premium
-- **Overnight** (1.75x) — overnight shifts
-- **Weekend** (1.2x) — weekend work
-- **Rush** (1.3x) — last-minute bookings
+### 3. Date & Time Tracking Per Line Item
+Log the date, start time, and end time for each job. Hours are auto-calculated — overnight jobs are handled automatically (e.g., 10:00 PM – 2:00 AM = 4 hrs).
 
-Fully user-configurable and extensible.
+### 4. Copy / Duplicate Line Items
+One-click duplicate button (⧉) on each line item — instantly copies a line with all fields intact, useful for recurring or similar jobs.
 
-### 4. Mileage Reimbursement
-Track round-trip mileage per job. System automatically calculates reimbursement at configurable rate (default: $0.70/mile, federal standard 2025).
+### 5. Per-Line Rate Override
+Each line item can individually override the customer's default hourly rate via a toggle (✏️). Useful for charity events, premium work, or any job deviating from the standard rate.
 
-### 5. Automatic Price Calculation
-Price field is **calculated, not entered**. No manual math errors. System shows transparent breakdown of how totals are calculated.
+### 6. Mileage Reimbursement
+Track round-trip mileage per job. System automatically calculates reimbursement at configurable rate (default: $0.725/mile, IRS standard 2025).
 
-### 6. Ad-hoc Rate Adjustments
-Override rate per line item for special cases (charity events, discounts, specialized work).
+### 7. Automatic Price Calculation
+Price field is **calculated, not entered**. No manual math errors. Download PDFs with verbose mode to show a per-line formula breakdown (e.g., `$50.00/hr × 2.5 hrs + 30 mi × $0.725/mi = $125.00 + $21.75 = $146.75`).
 
-### 7. Updated PDF Templates
+### 8. Portrait & Landscape PDFs
+Download invoices in portrait or landscape orientation. Choose per-download from the dropdown, or set landscape as the default in Settings.
+
+### 9. Updated PDF Templates
 Both included templates (Minimalist Clean & Professional Modern) display:
-- Hours worked
+- Date of service
+- Start/end time and calculated hours
 - Hourly rate ($/hr)
-- Rate modifier name and multiplier
 - Miles traveled
 - Calculated line total
+- Optional verbose formula breakdown per line
 
 ---
 
@@ -185,32 +194,27 @@ BASE_URL=http://localhost:3000
 1. Navigate to **Invoices** → **New Invoice**
 2. Select customer → rate auto-fills to their default
 3. Add line items:
-   - **Description**: "ASL Interpreting - Hospital Appointment"
-   - **Hours**: 2.5 (accepts decimals)
-   - **Rate**: $50.00 (pre-filled, editable)
-   - **Modifier**: Select from dropdown (e.g., "Holiday")
+   - **Date**: Date of service
+   - **Start / End**: Start and end times (hours auto-calculated, overnight-aware)
+   - **Rate**: $50.00 (pre-filled from customer; toggle ✏️ to override per line)
    - **Miles**: 30 (optional, round-trip total)
-   - **Price**: Auto-calculates to $208.50
+   - **Notes**: Description of work performed
+   - **Price**: Auto-calculates to `(Rate × Hours) + (Miles × $0.725)`
 4. System totals all line items automatically
 5. Save and share the public link with your client
-
-### Managing Rate Modifiers
-
-1. Navigate to **Settings** → **Rate Modifiers**
-2. View existing modifiers (Standard, Holiday, etc.)
-3. **Add new**: Click "Add Rate Modifier"
-   - Name: "Weekend"
-   - Multiplier: 1.2
-   - Mark as default: No
-4. **Edit/Delete**: Use action buttons on each modifier
-5. One modifier must be marked as default (typically "Standard" at 1.0x)
 
 ### Configuring Mileage Rate
 
 1. Navigate to **Settings** → **General**
 2. Find "Mileage Rate per Mile"
-3. Update to current federal rate or your preference (e.g., $0.70)
+3. Update to current IRS rate or your preference (e.g., $0.725)
 4. Save settings
+
+### PDF Orientation
+
+1. Navigate to **Settings** → **General**
+2. Toggle **"PDF Landscape Mode"** to set landscape as your default
+3. You can also override per-download from the invoice page's **Download PDF** dropdown (Portrait, Landscape, Portrait + Verbose, Landscape + Verbose)
 
 ---
 
@@ -230,8 +234,7 @@ Invio-Freelancer/
 │   ├── src/
 │   │   ├── controllers/
 │   │   │   ├── invoices.ts          # Time-based calculation logic
-│   │   │   ├── customers.ts         # Customer + default rates
-│   │   │   └── rate_modifiers.ts    # Rate modifiers CRUD
+│   │   │   └── customers.ts         # Customer + default rates
 │   │   ├── database/
 │   │   │   ├── init.ts              # DB initialization + helpers
 │   │   │   └── migrations.sql       # Schema with time-based fields
@@ -241,8 +244,7 @@ Invio-Freelancer/
 │       └── templates/               # Updated HTML templates
 ├── frontend/
 │   ├── islands/
-│   │   ├── InvoiceEditorIsland.tsx  # Time-based invoice editor
-│   │   └── RateModifiersManager.tsx # Modifiers management UI
+│   │   └── InvoiceEditorIsland.tsx  # Time-based invoice editor
 │   ├── routes/
 │   │   ├── invoices/                # Invoice CRUD routes
 │   │   ├── customers/               # Customer CRUD routes
@@ -253,17 +255,6 @@ Invio-Freelancer/
 
 ### Database Schema Changes
 
-**New Table: `rate_modifiers`**
-```sql
-CREATE TABLE rate_modifiers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  multiplier NUMERIC NOT NULL,
-  is_default INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
 **Updated: `customers`**
 ```sql
 ALTER TABLE customers ADD COLUMN default_hourly_rate NUMERIC;
@@ -273,14 +264,17 @@ ALTER TABLE customers ADD COLUMN default_hourly_rate NUMERIC;
 ```sql
 ALTER TABLE invoice_items ADD COLUMN hours NUMERIC;
 ALTER TABLE invoice_items ADD COLUMN rate NUMERIC;
-ALTER TABLE invoice_items ADD COLUMN rate_modifier_id TEXT;
+ALTER TABLE invoice_items ADD COLUMN service_date TEXT;
+ALTER TABLE invoice_items ADD COLUMN service_start_time TEXT;
+ALTER TABLE invoice_items ADD COLUMN service_end_time TEXT;
 ALTER TABLE invoice_items ADD COLUMN distance NUMERIC;
--- quantity and unit_price now nullable for backward compatibility
+-- quantity and unit_price remain for backward compatibility
 ```
 
-**New Setting: `mileageRate`**
+**New Settings**
 ```sql
-INSERT INTO settings (key, value) VALUES ('mileageRate', '0.70');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('mileageRate', '0.725');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('pdfLandscape', 'false');
 ```
 
 ---
@@ -343,11 +337,15 @@ docker compose up -d
 ### Completed ✅
 - [x] Time-based line item calculation
 - [x] Customer default hourly rates
-- [x] Rate modifiers system with UI
-- [x] Mileage reimbursement tracking
+- [x] Per-line rate override toggle
+- [x] Date of service per line item
+- [x] Start/end time with overnight support and auto-calculated hours
+- [x] Copy/duplicate line items
+- [x] Mileage reimbursement tracking ($0.725/mile default)
 - [x] Automatic price calculation
+- [x] Portrait & landscape PDF download
+- [x] Verbose PDF with per-line formula breakdown
 - [x] Updated PDF templates
-- [x] Ad-hoc rate overrides per line item
 - [x] Backward compatibility with quantity-based invoices
 
 ### Planned 🔮
@@ -366,11 +364,15 @@ docker compose up -d
 
 | Feature | Original Invio | Invio Freelancer |
 |---------|---------------|------------------|
-| **Billing Model** | Quantity × Price | Hours × Rate × Modifier + Mileage |
+| **Billing Model** | Quantity × Price | Hours × Rate + Mileage |
 | **Customer Rates** | - | ✅ Default hourly rate per customer |
-| **Rate Modifiers** | - | ✅ Configurable multipliers |
-| **Mileage Tracking** | - | ✅ Automatic reimbursement |
+| **Per-line Rate Override** | - | ✅ Toggle per line item |
+| **Date & Time Per Job** | - | ✅ Start/end time, overnight-aware |
+| **Copy Line Items** | - | ✅ One-click duplicate |
+| **Mileage Tracking** | - | ✅ Automatic reimbursement ($0.725/mi) |
 | **Price Entry** | Manual | ✅ Automatic calculation |
+| **PDF Orientation** | Portrait only | ✅ Portrait & Landscape |
+| **Verbose PDF** | - | ✅ Formula breakdown per line |
 | **Use Case** | Product sales | Service-based freelancing |
 
 ---

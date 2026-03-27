@@ -8,9 +8,10 @@ Modern, minimalist admin UI for Invio backend.
   - Login/logout
   - Dashboard summary
   - Invoices: list, filter (server-rendered), view, edit, duplicate,
-    publish/unpublish, status updates, download PDF, public link
-  - Customers: list, view, create, edit, delete
-  - Settings: company details, logo, default template, highlight color
+    publish/unpublish, status updates, download PDF (portrait/landscape/verbose), public link
+  - Time-based invoice editor: date of service, start/end time (overnight-aware, auto-calculated hours), per-line rate override toggle, copy/duplicate line items
+  - Customers: list, view, create, edit, delete (with default hourly rate)
+  - Settings: company details, logo, default template, highlight color, mileage rate, PDF landscape mode
   - Templates UI integrated into Settings
 
 ## Dev
