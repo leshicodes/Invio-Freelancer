@@ -5,7 +5,7 @@ import SettingsEnhancements from "../islands/SettingsEnhancements.tsx";
 import SettingsNav from "../islands/SettingsNav.tsx";
 import ThemeToggle from "../islands/ThemeToggle.tsx";
 import ExportAll from "../islands/ExportAll.tsx";
-import RateModifiersManager from "../islands/RateModifiersManager.tsx";
+
 import {
   LuAlertTriangle,
   LuBuilding2,
@@ -234,7 +234,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
     "templates",
     "payments",
     "tax",
-    "rate-modifiers",
     "numbering",
     "xml",
     "export",
@@ -275,7 +274,7 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
               templates: t("Templates"),
               payments: t("Payments"),
               tax: t("Tax"),
-              "rate-modifiers": "Rate Modifiers",
+
               numbering: t("Numbering"),
               xml: t("XML Export"),
               export: t("Export"),
@@ -290,7 +289,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
             { value: link("templates"), label: t("Templates"), icon: LuLayoutTemplate, show: hasTemplates },
             { value: link("payments"), label: t("Payments"), icon: LuCreditCard },
             { value: link("tax"), label: t("Tax"), icon: LuPercent },
-            { value: link("rate-modifiers"), label: "Rate Modifiers", icon: LuSettings },
             { value: link("numbering"), label: t("Numbering"), icon: LuHash },
             { value: link("xml"), label: t("XML Export"), icon: LuFileCode2 },
             { value: link("export"), label: t("Export"), icon: LuDownload },
@@ -344,12 +342,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
               <a href={link("tax")} class={section === "tax" ? "active" : undefined}>
                 <LuPercent size={20} class="mr-2" />
                 {t("Tax")}
-              </a>
-            </li>
-            <li>
-              <a href={link("rate-modifiers")} class={section === "rate-modifiers" ? "active" : undefined}>
-                <LuSettings size={20} class="mr-2" />
-                Rate Modifiers
               </a>
             </li>
             <li>
@@ -623,19 +615,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
                 </button>
               </div>
             </form>
-          )}
-
-          {section === "rate-modifiers" && (
-            <div class="space-y-4">
-              <div>
-                <h2 class="text-xl font-semibold mb-2">Rate Modifiers</h2>
-                <p class="text-sm opacity-70">
-                  Configure multipliers for different types of work (Standard, Holiday, Overnight, etc.). 
-                  These will be available as options when creating invoices.
-                </p>
-              </div>
-              <RateModifiersManager />
-            </div>
           )}
 
           {section === "numbering" && (
