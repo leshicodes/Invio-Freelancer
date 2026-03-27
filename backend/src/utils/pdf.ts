@@ -191,6 +191,7 @@ function buildContext(
   dateFormat?: string,
   numberFormat?: "comma" | "period",
   localeOverride?: string,
+  verbose?: boolean,
 ): TemplateContext & { logoUrl?: string; brandLogoLeft?: boolean } {
   const requestedLocale = localeOverride ?? invoice.locale ?? settings?.locale;
   const { locale: resolvedLocale, labels } = getInvoiceLabels(requestedLocale);
@@ -318,9 +319,32 @@ function buildContext(
         serviceDate: i.serviceDate,
         serviceStartTime: i.serviceStartTime,
         serviceEndTime: i.serviceEndTime,
-        // Convenience display: "10:00 AM – 1:20 PM (3.33 hrs)" or just hours
+        // Verbose breakdown: formula applied to this line item
+        verboseBreakdown: (() => {
+          if (!verbose) return undefined;
+          const hoursVal = i.hours ?? 0;
+          const rateVal = i.rate ?? 0;
+          const distVal = i.distance ?? 0;
+          const parts: string[] = [];
+          if (hoursVal > 0 && rateVal > 0) {
+            const rateFmt = formatMoney(rateVal, currency, numberFormat || "comma");
+            const timeFmt = formatMoney(hoursVal * rateVal, currency, numberFormat || "comma");
+            parts.push(`${rateFmt}/hr × ${hoursVal} hrs = ${timeFmt} (time)`);
+          }
+          if (distVal > 0) {
+            let mr = 0.725;
+            try {
+              const db = getDatabase();
+              const res = db.query("SELECT value FROM settings WHERE key = ?", ["mileageRate"]) as unknown[][];
+              if (res.length > 0) mr = Number(res[0][0]);
+            } catch { /* ignore */ }
+            const mileageFmt = formatMoney(distVal * mr, currency, numberFormat || "comma");
+            parts.push(`${distVal} mi × $${mr}/mi = ${mileageFmt} (mileage)`);
+          }
+          return parts.length > 0 ? parts.join("  +  ") : undefined;
+        })(),
+        // Convenience display: "10:00 AM – 11:24 PM (2.05 hrs)" or just "2.05 hrs"
         serviceTimeDisplay: (() => {
-          if (!i.serviceStartTime || !i.serviceEndTime) return undefined;
           const fmt12 = (t: string) => {
             const [h, m] = t.split(":").map(Number);
             if (isNaN(h) || isNaN(m)) return t;
@@ -329,7 +353,10 @@ function buildContext(
             return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
           };
           const hoursVal = i.hours ?? 0;
-          return `${fmt12(i.serviceStartTime)} – ${fmt12(i.serviceEndTime)} (${hoursVal} hrs)`;
+          if (i.serviceStartTime && i.serviceEndTime) {
+            return `${fmt12(i.serviceStartTime)} – ${fmt12(i.serviceEndTime)} (${hoursVal} hrs)`;
+          }
+          return `${hoursVal} hrs`;
         })(),
       };
     }),
@@ -355,6 +382,7 @@ function buildContext(
     // Flags
     hasDiscount: invoice.discountAmount > 0,
     hasTax: invoice.taxAmount > 0,
+    verbose: verbose ?? false,
 
     // Payment
     paymentTerms: invoice.paymentTerms || settings?.paymentTerms || undefined,
@@ -382,7 +410,7 @@ export async function generateInvoicePDF(
   businessSettings?: BusinessSettings,
   templateId?: string,
   customHighlightColor?: string,
-  opts?: { embedXmlProfileId?: string; embedXml?: boolean; xmlOptions?: Record<string, unknown>; dateFormat?: string; numberFormat?: "comma" | "period"; locale?: string; landscape?: boolean },
+  opts?: { embedXmlProfileId?: string; embedXml?: boolean; xmlOptions?: Record<string, unknown>; dateFormat?: string; numberFormat?: "comma" | "period"; locale?: string; landscape?: boolean; verbose?: boolean },
 ): Promise<Uint8Array> {
   // Inline remote logo when possible for robust HTML rendering
   const inlined = await inlineLogoIfPossible(businessSettings);
@@ -394,6 +422,7 @@ export async function generateInvoicePDF(
     opts?.dateFormat,
     opts?.numberFormat,
     opts?.locale ?? invoiceData.locale ?? inlined?.locale,
+    opts?.verbose ?? false,
   );
   // First, attempt Puppeteer-based rendering
   let pdfBytes = await tryPuppeteerPdf(html, opts?.landscape ?? false);
@@ -443,6 +472,7 @@ export function buildInvoiceHTML(
   dateFormat?: string,
   numberFormat?: "comma" | "period",
   localeOverride?: string,
+  verbose?: boolean,
 ): string {
   const ctx = buildContext(
     invoice,
@@ -451,6 +481,7 @@ export function buildInvoiceHTML(
     dateFormat,
     numberFormat,
     localeOverride,
+    verbose ?? false,
   );
   const hl = normalizeHex(highlight) || "#2563eb";
   const hlLight = lighten(hl, 0.86);

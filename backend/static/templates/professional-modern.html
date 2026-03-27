@@ -408,8 +408,9 @@
             <td>
               <div class="item-description">{{description}}</div>
               {{#notes}}<div class="item-notes">{{notes}}</div>{{/notes}}
+              {{#verboseBreakdown}}<div style="font-size:0.78em;color:#888;margin-top:2px;">{{verboseBreakdown}}</div>{{/verboseBreakdown}}
             </td>
-            <td class="quantity">{{#serviceTimeDisplay}}{{serviceTimeDisplay}}{{/serviceTimeDisplay}}{{^serviceTimeDisplay}}{{hours}}{{/serviceTimeDisplay}}</td>
+            <td class="quantity">{{serviceTimeDisplay}}</td>
             <td class="unit-price">{{currency}} {{adjustedRate}}</td>
             <td class="subtotal">{{currency}} {{itemSubtotal}}</td>
             <td>{{distance || '-'}}</td>
