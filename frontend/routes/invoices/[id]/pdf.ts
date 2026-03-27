@@ -17,7 +17,9 @@ export const handler: Handlers = {
     }
 
     const { id } = ctx.params as { id: string };
-    const backendUrl = `${BACKEND_URL}/api/v1/invoices/${id}/pdf`;
+    const url = new URL(req.url);
+    const landscape = url.searchParams.get("landscape");
+    const backendUrl = `${BACKEND_URL}/api/v1/invoices/${id}/pdf${landscape ? `?landscape=${encodeURIComponent(landscape)}` : ""}`;
 
     const res = await fetch(backendUrl, { headers: { Authorization: auth } });
     if (!res.ok) {

@@ -314,6 +314,23 @@ function buildContext(
         rateModifierName,
         rateModifierMultiplier: String(rateModifierMultiplier),
         distance: i.distance,
+        // Service schedule fields
+        serviceDate: i.serviceDate,
+        serviceStartTime: i.serviceStartTime,
+        serviceEndTime: i.serviceEndTime,
+        // Convenience display: "10:00 AM – 1:20 PM (3.33 hrs)" or just hours
+        serviceTimeDisplay: (() => {
+          if (!i.serviceStartTime || !i.serviceEndTime) return undefined;
+          const fmt12 = (t: string) => {
+            const [h, m] = t.split(":").map(Number);
+            if (isNaN(h) || isNaN(m)) return t;
+            const ampm = h >= 12 ? "PM" : "AM";
+            const h12 = h % 12 || 12;
+            return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+          };
+          const hoursVal = i.hours ?? 0;
+          return `${fmt12(i.serviceStartTime)} – ${fmt12(i.serviceEndTime)} (${hoursVal} hrs)`;
+        })(),
       };
     }),
 
@@ -365,7 +382,7 @@ export async function generateInvoicePDF(
   businessSettings?: BusinessSettings,
   templateId?: string,
   customHighlightColor?: string,
-  opts?: { embedXmlProfileId?: string; embedXml?: boolean; xmlOptions?: Record<string, unknown>; dateFormat?: string; numberFormat?: "comma" | "period"; locale?: string },
+  opts?: { embedXmlProfileId?: string; embedXml?: boolean; xmlOptions?: Record<string, unknown>; dateFormat?: string; numberFormat?: "comma" | "period"; locale?: string; landscape?: boolean },
 ): Promise<Uint8Array> {
   // Inline remote logo when possible for robust HTML rendering
   const inlined = await inlineLogoIfPossible(businessSettings);
@@ -379,7 +396,7 @@ export async function generateInvoicePDF(
     opts?.locale ?? invoiceData.locale ?? inlined?.locale,
   );
   // First, attempt Puppeteer-based rendering
-  let pdfBytes = await tryPuppeteerPdf(html);
+  let pdfBytes = await tryPuppeteerPdf(html, opts?.landscape ?? false);
   if (!pdfBytes) {
     throw new Error(
       "Chromium-based PDF rendering failed. Install Google Chrome/Chromium or set PUPPETEER_EXECUTABLE_PATH.",
@@ -462,7 +479,7 @@ export function buildInvoiceHTML(
   });
 }
 
-async function tryPuppeteerPdf(html: string): Promise<Uint8Array | null> {
+async function tryPuppeteerPdf(html: string, landscape = false): Promise<Uint8Array | null> {
   try {
     const { executablePath, channel } = await resolveChromiumLaunchConfig();
     const launchOptions: NonNullable<Parameters<typeof puppeteer.launch>[0]> = {
@@ -484,9 +501,14 @@ async function tryPuppeteerPdf(html: string): Promise<Uint8Array | null> {
     const browser = await puppeteer.launch(launchOptions);
     try {
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
+      // Inject landscape CSS before rendering if needed
+      const htmlToRender = landscape
+        ? html.replace(/<\/head>/, '<style>@page { size: A4 landscape; }</style></head>')
+        : html;
+      await page.setContent(htmlToRender, { waitUntil: "networkidle0", timeout: 30000 });
       const pdf = await page.pdf({
         format: "A4",
+        landscape,
         printBackground: true,
         preferCSSPageSize: true,
         margin: { top: "15mm", bottom: "15mm", left: "15mm", right: "15mm" },

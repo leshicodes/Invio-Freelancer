@@ -166,7 +166,7 @@ export const createCustomer = (data: CreateCustomerRequest): Customer => {
     createdAt: now,
     city: city ?? undefined,
     postalCode: postal ?? undefined,
-    defaultHourlyRate: defaultHourlyRate > 0 ? defaultHourlyRate : undefined,
+    defaultHourlyRate: defaultHourlyRate !== undefined ? defaultHourlyRate : undefined,
   };
 };
 
@@ -179,14 +179,7 @@ export const updateCustomer = (
   const existing = getCustomerById(id);
   if (!existing) return null;
 
-  const next = {
-    name: data.name ?? existing.name,
-    contactName: data.contactName === undefined ? existing.contactName : undefined,
-    email: data.email === undefined ? existing.email : undefined,
-    phone: data.phone === undefined ? existing.phone : undefined,
-    address: data.address === undefined ? existing.address : undefined,
-    taxId: data.taxId === undefined ? existing.taxId : undefined,
-  } as Partial<Customer>;
+  const name = data.name ?? existing.name;
 
   // If provided, coerce empty to NULL
   const contactName = data.contactName !== undefined
@@ -225,7 +218,7 @@ export const updateCustomer = (
       WHERE id = ?
     `,
       [
-        next.name,
+        name,
         contactName,
         email,
         phone,
@@ -247,7 +240,7 @@ export const updateCustomer = (
         WHERE id = ?
       `,
         [
-          next.name,
+          name,
           email,
           phone,
           address,
@@ -266,7 +259,7 @@ export const updateCustomer = (
         WHERE id = ?
       `,
         [
-          next.name,
+          name,
           email,
           phone,
           address,

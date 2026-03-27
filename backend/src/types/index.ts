@@ -63,6 +63,10 @@ export interface InvoiceItem {
   rate?: number;
   rateModifierId?: string;
   distance?: number;
+  // Service schedule fields
+  serviceDate?: string;
+  serviceStartTime?: string;
+  serviceEndTime?: string;
 }
 
 export interface InvoiceAttachment {

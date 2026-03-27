@@ -157,6 +157,8 @@ export const handler: Handlers<Data & { demoMode: boolean }> = {
       "dateFormat",
       // Number format
       "numberFormat",
+      // PDF export orientation
+      "pdfLandscape",
     ];
     // Collect values; handle duplicate hidden + checkbox pattern (want last value = actual state)
     for (const f of fields) {
@@ -167,7 +169,7 @@ export const handler: Handlers<Data & { demoMode: boolean }> = {
       payload[f] = chosen;
     }
     // Normalize boolean-style toggles to explicit "true"/"false" strings
-    ["embedXmlInPdf", "embedXmlInHtml", "invoiceNumberingEnabled"].forEach((k) => {
+    ["embedXmlInPdf", "embedXmlInHtml", "invoiceNumberingEnabled", "pdfLandscape"].forEach((k) => {
       if (k in payload) {
         const v = String(payload[k]).toLowerCase();
         payload[k] = v === "true" ? "true" : "false";
@@ -212,6 +214,7 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
   const xmlProfileId = (s.xmlProfileId as string) || 'ubl21';
   const embedXmlInPdf = String(s.embedXmlInPdf || 'false').toLowerCase() === 'true';
   const embedXmlInHtml = String(s.embedXmlInHtml || 'false').toLowerCase() === 'true';
+  const pdfLandscape = String(s.pdfLandscape || 'false').toLowerCase() === 'true';
   const currentLocale = (s.locale as string) || "en";
   const localeOptions = [
     { value: "en", labelKey: "English" },
@@ -695,6 +698,17 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
                       <input type="hidden" name="embedXmlInHtml" value="false" />
                       <input type="checkbox" name="embedXmlInHtml" value="true" class="toggle toggle-primary" checked={embedXmlInHtml} />
                       <span class="text-xs opacity-70">{t("Adds selected XML as an HTML attachment")}</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                  <label class="form-control">
+                    <div class="label flex justify-between"><span class="label-text">{t("Landscape PDF by default")}</span></div>
+                    <div class="flex items-center gap-3 mt-1">
+                      <input type="hidden" name="pdfLandscape" value="false" />
+                      <input type="checkbox" name="pdfLandscape" value="true" class="toggle toggle-primary" checked={pdfLandscape} />
+                      <span class="text-xs opacity-70">{t("Generate PDFs in landscape orientation")}</span>
                     </div>
                   </label>
                 </div>

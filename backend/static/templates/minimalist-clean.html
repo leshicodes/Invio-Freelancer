@@ -371,8 +371,9 @@
       <table class="items-table">
         <thead>
           <tr>
+            <th>Date</th>
             <th>{{labels.itemHeaderDescription}}</th>
-            <th>Hours</th>
+            <th>Time / Hours</th>
             <th>Rate ($/hr)</th>
             <th>Subtotal</th>
             <th>Miles</th>
@@ -382,11 +383,12 @@
         <tbody>
           {{#items}}
           <tr>
+            <td style="white-space:nowrap;">{{#serviceDate}}{{serviceDate}}{{/serviceDate}}</td>
             <td>
               <div class="item-description">{{description}}</div>
               {{#notes}}<div class="item-notes">{{notes}}</div>{{/notes}}
             </td>
-            <td>{{hours}}</td>
+            <td>{{#serviceTimeDisplay}}{{serviceTimeDisplay}}{{/serviceTimeDisplay}}{{^serviceTimeDisplay}}{{hours}}{{/serviceTimeDisplay}}</td>
             <td>{{currency}} {{adjustedRate}}</td>
             <td>{{currency}} {{itemSubtotal}}</td>
             <td>{{distance || '-'}}</td>

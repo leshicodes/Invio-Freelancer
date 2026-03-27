@@ -149,7 +149,9 @@ export const handler: Handlers<Data> = {
       const rate = parseFloat(
         (form.get(`item_${i}_rate`) as string) || "0",
       );
-      const rateModifierId = form.get(`item_${i}_rateModifierId`) as string | undefined;
+      const serviceDate = (form.get(`item_${i}_serviceDate`) as string) || undefined;
+      const serviceStartTime = (form.get(`item_${i}_serviceStartTime`) as string) || undefined;
+      const serviceEndTime = (form.get(`item_${i}_serviceEndTime`) as string) || undefined;
       const distance = parseFloat(
         (form.get(`item_${i}_distance`) as string) || "0",
       );
@@ -163,7 +165,9 @@ export const handler: Handlers<Data> = {
         description,
         hours,
         rate,
-        rateModifierId,
+        serviceDate: serviceDate || undefined,
+        serviceStartTime: serviceStartTime || undefined,
+        serviceEndTime: serviceEndTime || undefined,
         distance: distance > 0 ? distance : undefined,
         notes: itemNotes,
       };
