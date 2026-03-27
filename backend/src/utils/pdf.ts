@@ -325,23 +325,33 @@ function buildContext(
           const hoursVal = i.hours ?? 0;
           const rateVal = i.rate ?? 0;
           const distVal = i.distance ?? 0;
-          const parts: string[] = [];
-          if (hoursVal > 0 && rateVal > 0) {
-            const rateFmt = formatMoney(rateVal, currency, numberFormat || "comma");
-            const timeFmt = formatMoney(hoursVal * rateVal, currency, numberFormat || "comma");
-            parts.push(`${rateFmt}/hr × ${hoursVal} hrs = ${timeFmt} (time)`);
-          }
-          if (distVal > 0) {
-            let mr = 0.725;
+          const hasTime = hoursVal > 0 && rateVal > 0;
+          const hasMileage = distVal > 0;
+          if (!hasTime && !hasMileage) return undefined;
+          let mr = 0.725;
+          if (hasMileage) {
             try {
               const db = getDatabase();
               const res = db.query("SELECT value FROM settings WHERE key = ?", ["mileageRate"]) as unknown[][];
               if (res.length > 0) mr = Number(res[0][0]);
             } catch { /* ignore */ }
-            const mileageFmt = formatMoney(distVal * mr, currency, numberFormat || "comma");
-            parts.push(`${distVal} mi × $${mr}/mi = ${mileageFmt} (mileage)`);
           }
-          return parts.length > 0 ? parts.join("  +  ") : undefined;
+          const timeTotal = hoursVal * rateVal;
+          const mileageTotal = distVal * mr;
+          if (hasTime && hasMileage) {
+            const rateFmt = formatMoney(rateVal, currency, numberFormat || "comma");
+            const timeFmt = formatMoney(timeTotal, currency, numberFormat || "comma");
+            const mileageFmt = formatMoney(mileageTotal, currency, numberFormat || "comma");
+            const grandFmt = formatMoney(timeTotal + mileageTotal, currency, numberFormat || "comma");
+            return `${rateFmt}/hr × ${hoursVal} hrs + ${distVal} mi × $${mr}/mi = ${timeFmt} + ${mileageFmt} = ${grandFmt}`;
+          } else if (hasTime) {
+            const rateFmt = formatMoney(rateVal, currency, numberFormat || "comma");
+            const timeFmt = formatMoney(timeTotal, currency, numberFormat || "comma");
+            return `${rateFmt}/hr × ${hoursVal} hrs = ${timeFmt}`;
+          } else {
+            const mileageFmt = formatMoney(mileageTotal, currency, numberFormat || "comma");
+            return `${distVal} mi × $${mr}/mi = ${mileageFmt}`;
+          }
         })(),
         // Convenience display: "10:00 AM – 11:24 PM (2.05 hrs)" or just "2.05 hrs"
         serviceTimeDisplay: (() => {
