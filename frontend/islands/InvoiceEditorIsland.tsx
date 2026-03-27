@@ -27,6 +27,9 @@ type IncomingItem = {
   distance?: number;
   notes?: string;
   taxPercent?: number;
+  serviceDate?: string;
+  serviceStartTime?: string;
+  serviceEndTime?: string;
 };
 
 export type InvoiceEditorProps = {
@@ -58,9 +61,11 @@ export type InvoiceEditorProps = {
 type ItemState = {
   id: string;
   description: string;
-  hours: string;
+  serviceDate: string;
+  serviceStartTime: string;
+  serviceEndTime: string;
   rate: string;
-  rateModifierId: string;
+  rateOverride: boolean;
   distance: string;
   notes: string;
   taxPercent: string;
@@ -84,15 +89,27 @@ function nextItemId(): string {
   return `invoice-item-${Date.now()}-${itemIdCounter}`;
 }
 
+function calcHoursFromTimes(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return 0;
+  let startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+  if (endMin <= startMin) endMin += 1440; // overnight
+  return Math.round((endMin - startMin) / 60 * 100) / 100;
+}
+
 function mapItem(item?: IncomingItem): ItemState {
   return {
     id: nextItemId(),
     description: item?.description ?? "",
-    hours: item?.hours !== undefined ? String(item.hours) : 
-           item?.quantity !== undefined ? String(item.quantity) : "0", // Backward compatibility
-    rate: item?.rate !== undefined ? String(item.rate) : 
-          item?.unitPrice !== undefined ? String(item.unitPrice) : "0", // Backward compatibility
-    rateModifierId: item?.rateModifierId ?? "", // Will be set to default after modifiers load
+    serviceDate: item?.serviceDate ?? "",
+    serviceStartTime: item?.serviceStartTime ?? "",
+    serviceEndTime: item?.serviceEndTime ?? "",
+    rate: item?.rate !== undefined ? String(item.rate) :
+          item?.unitPrice !== undefined ? String(item.unitPrice) : "0",
+    rateOverride: false,
     distance: item?.distance !== undefined ? String(item.distance) : "",
     notes: item?.notes ?? "",
     taxPercent: item && typeof item.taxPercent === "number"
@@ -169,9 +186,7 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
   >(null);
   
   // Time-based billing state
-  const [rateModifiers, setRateModifiers] = useState<RateModifier[]>([]);
-  const [mileageRate, setMileageRate] = useState<number>(0.70); // Default federal rate
-  const [defaultModifierId, setDefaultModifierId] = useState<string>("");
+  const [mileageRate, setMileageRate] = useState<number>(0.725); // Default federal rate
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -186,30 +201,6 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     setItems(next);
   }, [props.items]);
 
-  // Load rate modifiers on mount
-  useEffect(() => {
-    async function loadRateModifiers() {
-      try {
-        const response = await fetch("/api/v1/rate-modifiers");
-        if (response.ok) {
-          const modifiers: RateModifier[] = await response.json();
-          setRateModifiers(modifiers);
-          const defaultMod = modifiers.find(m => m.isDefault);
-          if (defaultMod) {
-            setDefaultModifierId(defaultMod.id);
-            // Update items that don't have a modifier set
-            setItems(prev => prev.map(item => 
-              item.rateModifierId === "" ? { ...item, rateModifierId: defaultMod.id } : item
-            ));
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load rate modifiers:", error);
-      }
-    }
-    loadRateModifiers();
-  }, []);
-
   // Load mileage rate setting on mount
   useEffect(() => {
     async function loadSettings() {
@@ -217,7 +208,6 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
         const response = await fetch("/api/v1/settings");
         if (response.ok) {
           const settings = await response.json();
-          // Settings API returns object with key-value pairs, not array
           if (settings.mileageRate) {
             setMileageRate(parseFloat(settings.mileageRate));
           }
@@ -231,17 +221,13 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
 
   const handleAddItem = useCallback(() => {
     const newItem = mapItem();
-    // Set default modifier if available
-    if (defaultModifierId) {
-      newItem.rateModifierId = defaultModifierId;
-    }
     // Set customer's default hourly rate if available
     const customer = props.customers?.find(c => c.id === selectedCustomerId);
-    if (customer && customer.defaultHourlyRate) {
+    if (customer && customer.defaultHourlyRate !== undefined) {
       newItem.rate = String(customer.defaultHourlyRate);
     }
     setItems((prev) => [...prev, newItem]);
-  }, [defaultModifierId, props.customers, selectedCustomerId]);
+  }, [props.customers, selectedCustomerId]);
 
   const handleRemoveItem = useCallback((id: string) => {
     setItems((prev) => {
@@ -272,16 +258,26 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     setSelectedCustomerId(value);
     if (value !== "__create__") {
       setInlineCustomer({ ...blankInlineCustomer });
-      // Auto-fill rate from customer's default
+      // Auto-fill rate from customer's default, but only for rows without a manual override
       const customer = props.customers?.find(c => c.id === value);
-      if (customer && customer.defaultHourlyRate) {
-        setItems(prev => prev.map(item => ({
-          ...item,
-          rate: String(customer.defaultHourlyRate)
-        })));
+      if (customer && customer.defaultHourlyRate !== undefined) {
+        setItems(prev => prev.map(item =>
+          item.rateOverride ? item : { ...item, rate: String(customer.defaultHourlyRate) }
+        ));
       }
     }
   }, [props.customers]);
+
+  const handleDuplicateItem = useCallback((id: string) => {
+    setItems((prev) => {
+      const idx = prev.findIndex(item => item.id === id);
+      if (idx === -1) return prev;
+      const copy = { ...prev[idx], id: nextItemId() };
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+  }, []);
 
   const handleInlineCustomerChange = useCallback(
     (field: keyof InlineCustomer) => (event: Event) => {
@@ -320,17 +316,13 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     let tax = 0;
 
     items.forEach((item) => {
-      // Time-based billing calculation: (Rate × Hours × Modifier) + (Distance × Mileage Rate)
-      const hours = parseFloat(item.hours) || 0;
+      // Time-based billing calculation: (Rate × Hours) + (Distance × Mileage Rate)
+      const hours = calcHoursFromTimes(item.serviceStartTime, item.serviceEndTime);
       const rate = parseFloat(item.rate) || 0;
       const distance = parseFloat(item.distance) || 0;
-      
-      // Find modifier multiplier
-      const modifier = rateModifiers.find(m => m.id === item.rateModifierId);
-      const multiplier = modifier ? modifier.multiplier : 1.0;
-      
-      // Calculate line total
-      const basePay = rate * hours * multiplier;
+
+      // Calculate line total (multiplier always 1.0 — no modifiers)
+      const basePay = rate * hours;
       const mileagePay = distance * mileageRate;
       let lineTotal = basePay + mileagePay;
       
@@ -396,7 +388,6 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
     pricesIncludeTax,
     roundingMode,
     taxMode,
-    rateModifiers,
     mileageRate,
   ]);
 
@@ -824,17 +815,19 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
         <div class="items-header hidden lg:flex flex-row flex-nowrap items-center gap-2 mb-1 text-xs text-base-content/60 font-medium">
           <div class="w-6 shrink-0"></div>
           <div class="flex-1 min-w-0 pl-3">Description</div>
-          <div class="w-20 shrink-0 text-center">Hours</div>
+          <div class="w-28 shrink-0 text-center">Date</div>
+          <div class="w-24 shrink-0 text-center">Start</div>
+          <div class="w-24 shrink-0 text-center">End</div>
+          <div class="w-16 shrink-0 text-center">Hrs</div>
           <div class="w-24 shrink-0 text-center">Rate ($/hr)</div>
-          <div class="w-32 shrink-0 text-center">Modifier</div>
           <div class="w-20 shrink-0 text-center">Miles</div>
           <div
             class={`w-24 shrink-0 text-center per-line-tax-input ${taxMode === "line" ? "" : "hidden"}`}
           >
             Tax %
           </div>
-          <div class="w-32 max-w-xs shrink-0 text-center">Notes</div>
-          <div class="w-8 shrink-0"></div>
+          <div class="w-28 max-w-xs shrink-0 text-center">Notes</div>
+          <div class="w-16 shrink-0"></div>
         </div>
 
         <div id="items-container" class="space-y-3">
@@ -880,22 +873,72 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                         data-writable
                         aria-describedby="items-error"
                       />
-                      <div class="grid grid-cols-2 gap-2">
+                      <div class="grid grid-cols-3 gap-2">
                         <div>
-                          <label class="label py-1"><span class="label-text text-xs">Hours</span></label>
+                          <label class="label py-1"><span class="label-text text-xs">Date</span></label>
                           <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            name={`item_${index}_hours`}
-                            value={item.hours}
+                            type="date"
+                            name={`item_${index}_serviceDate`}
+                            value={item.serviceDate}
                             class="input input-bordered w-full input-sm"
-                            onInput={handleItemChange(index, "hours")}
+                            onInput={handleItemChange(index, "serviceDate")}
                             data-writable
                           />
                         </div>
                         <div>
-                          <label class="label py-1"><span class="label-text text-xs">Rate ($/hr)</span></label>
+                          <label class="label py-1"><span class="label-text text-xs">Start Time</span></label>
+                          <input
+                            type="time"
+                            name={`item_${index}_serviceStartTime`}
+                            value={item.serviceStartTime}
+                            class="input input-bordered w-full input-sm"
+                            onInput={handleItemChange(index, "serviceStartTime")}
+                            data-writable
+                          />
+                        </div>
+                        <div>
+                          <label class="label py-1"><span class="label-text text-xs">End Time</span></label>
+                          <input
+                            type="time"
+                            name={`item_${index}_serviceEndTime`}
+                            value={item.serviceEndTime}
+                            class="input input-bordered w-full input-sm"
+                            onInput={handleItemChange(index, "serviceEndTime")}
+                            data-writable
+                          />
+                        </div>
+                      </div>
+                      <div class="grid grid-cols-2 gap-2">
+                        <div>
+                          <label class="label py-1"><span class="label-text text-xs">Hours (calculated)</span></label>
+                          <input
+                            type="text"
+                            value={calcHoursFromTimes(item.serviceStartTime, item.serviceEndTime).toFixed(2)}
+                            class="input input-bordered w-full input-sm bg-base-200"
+                            readOnly
+                          />
+                          <input
+                            type="hidden"
+                            name={`item_${index}_hours`}
+                            value={calcHoursFromTimes(item.serviceStartTime, item.serviceEndTime)}
+                          />
+                        </div>
+                        <div>
+                          <label class="label py-1">
+                            <span class="label-text text-xs">Rate ($/hr)</span>
+                            <button
+                              type="button"
+                              class="btn btn-ghost btn-xs ml-1"
+                              title={item.rateOverride ? "Unlock rate (use customer default)" : "Lock / override rate"}
+                              onClick={() => setItems(prev => {
+                                const next = [...prev];
+                                next[index] = { ...next[index], rateOverride: !next[index].rateOverride };
+                                return next;
+                              })}
+                            >
+                              {item.rateOverride ? "🔓" : "✏️"}
+                            </button>
+                          </label>
                           <input
                             type="number"
                             step="0.01"
@@ -905,26 +948,12 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                             class="input input-bordered w-full input-sm"
                             onInput={handleItemChange(index, "rate")}
                             data-writable
+                            readOnly={!item.rateOverride}
+                            title={item.rateOverride ? undefined : "Rate is set from customer default — click ✏️ to override"}
                           />
                         </div>
                       </div>
                       <div class="grid grid-cols-2 gap-2">
-                        <div>
-                          <label class="label py-1"><span class="label-text text-xs">Modifier</span></label>
-                          <select
-                            name={`item_${index}_rateModifierId`}
-                            value={item.rateModifierId}
-                            class="select select-bordered w-full select-sm"
-                            onInput={handleItemChange(index, "rateModifierId")}
-                            data-writable
-                          >
-                            {rateModifiers.map(mod => (
-                              <option key={mod.id} value={mod.id}>
-                                {mod.name} ({mod.multiplier}x)
-                              </option>
-                            ))}
-                          </select>
-                        </div>
                         <div>
                           <label class="label py-1"><span class="label-text text-xs">Miles (optional)</span></label>
                           <input
@@ -939,25 +968,25 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                             data-writable
                           />
                         </div>
+                        {taxMode === "line" && (
+                          <div>
+                            <label class="label py-1"><span class="label-text text-xs">Tax %</span></label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              name={`item_${index}_tax_percent`}
+                              value={item.taxPercent}
+                              placeholder="0"
+                              class="input input-bordered w-full input-sm per-line-tax-input"
+                              onInput={handleItemChange(index, "taxPercent")}
+                              data-writable
+                              disabled={taxMode !== "line"}
+                              title="Per-line tax rate (%)"
+                            />
+                          </div>
+                        )}
                       </div>
-                      {taxMode === "line" && (
-                        <div>
-                          <label class="label py-1"><span class="label-text text-xs">Tax %</span></label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            name={`item_${index}_tax_percent`}
-                            value={item.taxPercent}
-                            placeholder="0"
-                            class="input input-bordered w-full input-sm per-line-tax-input"
-                            onInput={handleItemChange(index, "taxPercent")}
-                            data-writable
-                            disabled={taxMode !== "line"}
-                            title="Per-line tax rate (%)"
-                          />
-                        </div>
-                      )}
                       <input
                         name={`item_${index}_notes`}
                         value={item.notes}
@@ -967,15 +996,27 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                         data-writable
                       />
                     </div>
-                    <button
-                      type="button"
-                      class="remove-item btn btn-ghost btn-square btn-sm shrink-0"
-                      aria-label="Remove item"
-                      onClick={() => handleRemoveItem(item.id)}
-                      data-writable
-                    >
-                      ×
-                    </button>
+                    <div class="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-square btn-sm shrink-0"
+                        aria-label="Duplicate item"
+                        title="Copy item"
+                        onClick={() => handleDuplicateItem(item.id)}
+                        data-writable
+                      >
+                        ⧉
+                      </button>
+                      <button
+                        type="button"
+                        class="remove-item btn btn-ghost btn-square btn-sm shrink-0"
+                        aria-label="Remove item"
+                        onClick={() => handleRemoveItem(item.id)}
+                        data-writable
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -999,40 +1040,69 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                     aria-describedby="items-error"
                   />
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    name={`item_${index}_hours`}
-                    value={item.hours}
-                    placeholder="0"
-                    class="input input-bordered w-20 shrink-0"
-                    onInput={handleItemChange(index, "hours")}
+                    type="date"
+                    name={`item_${index}_serviceDate`}
+                    value={item.serviceDate}
+                    class="input input-bordered w-28 shrink-0"
+                    onInput={handleItemChange(index, "serviceDate")}
                     data-writable
                   />
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    name={`item_${index}_rate`}
-                    value={item.rate}
-                    placeholder="0"
+                    type="time"
+                    name={`item_${index}_serviceStartTime`}
+                    value={item.serviceStartTime}
                     class="input input-bordered w-24 shrink-0"
-                    onInput={handleItemChange(index, "rate")}
+                    onInput={handleItemChange(index, "serviceStartTime")}
                     data-writable
                   />
-                  <select
-                    name={`item_${index}_rateModifierId`}
-                    value={item.rateModifierId}
-                    class="select select-bordered w-32 shrink-0"
-                    onInput={handleItemChange(index, "rateModifierId")}
+                  <input
+                    type="time"
+                    name={`item_${index}_serviceEndTime`}
+                    value={item.serviceEndTime}
+                    class="input input-bordered w-24 shrink-0"
+                    onInput={handleItemChange(index, "serviceEndTime")}
                     data-writable
-                  >
-                    {rateModifiers.map(mod => (
-                      <option key={mod.id} value={mod.id}>
-                        {mod.name} ({mod.multiplier}x)
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  {/* Readonly calculated hours display + hidden actual value */}
+                  <input
+                    type="text"
+                    value={calcHoursFromTimes(item.serviceStartTime, item.serviceEndTime).toFixed(2)}
+                    class="input input-bordered w-16 shrink-0 bg-base-200 text-center"
+                    readOnly
+                    title="Hours calculated from start/end time"
+                  />
+                  <input
+                    type="hidden"
+                    name={`item_${index}_hours`}
+                    value={calcHoursFromTimes(item.serviceStartTime, item.serviceEndTime)}
+                  />
+                  <div class="relative w-24 shrink-0">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name={`item_${index}_rate`}
+                      value={item.rate}
+                      placeholder="0"
+                      class={`input input-bordered w-full ${!item.rateOverride ? "bg-base-200" : ""}`}
+                      onInput={handleItemChange(index, "rate")}
+                      data-writable
+                      readOnly={!item.rateOverride}
+                      title={item.rateOverride ? undefined : "Rate from customer default — click ✏️ to override"}
+                    />
+                    <button
+                      type="button"
+                      class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs px-1"
+                      title={item.rateOverride ? "Unlock rate" : "Override rate"}
+                      onClick={() => setItems(prev => {
+                        const next = [...prev];
+                        next[index] = { ...next[index], rateOverride: !next[index].rateOverride };
+                        return next;
+                      })}
+                    >
+                      {item.rateOverride ? "🔓" : "✏️"}
+                    </button>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
@@ -1061,10 +1131,20 @@ export default function InvoiceEditorIsland(props: InvoiceEditorProps) {
                     name={`item_${index}_notes`}
                     value={item.notes}
                     placeholder="Notes"
-                    class="input input-bordered w-40 max-w-xs shrink-0"
+                    class="input input-bordered w-28 max-w-xs shrink-0"
                     onInput={handleItemChange(index, "notes")}
                     data-writable
                   />
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-square btn-sm shrink-0"
+                    aria-label="Duplicate item"
+                    title="Copy item"
+                    onClick={() => handleDuplicateItem(item.id)}
+                    data-writable
+                  >
+                    ⧉
+                  </button>
                   <button
                     type="button"
                     class="remove-item btn btn-ghost btn-square btn-sm shrink-0"

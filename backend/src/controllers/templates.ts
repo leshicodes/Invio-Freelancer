@@ -375,7 +375,7 @@ export const renderTemplate = (
   const renderVars = (tpl: string, ctx: Record<string, unknown>): string => {
     return tpl.replace(/\{\{([^}]+)\}\}/g, (m, raw) => {
       const key = String(raw).trim();
-      if (key.startsWith("#") || key.startsWith("/")) return m; // skip block tags
+      if (key.startsWith("#") || key.startsWith("/") || key.startsWith("^")) return m; // skip block tags
       // default value support: {{var || 'default'}}
       if (key.includes("||")) {
         const [lhs, rhs] = key.split("||").map((s: string) => s.trim());

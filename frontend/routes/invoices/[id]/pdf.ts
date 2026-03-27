@@ -17,7 +17,14 @@ export const handler: Handlers = {
     }
 
     const { id } = ctx.params as { id: string };
-    const backendUrl = `${BACKEND_URL}/api/v1/invoices/${id}/pdf`;
+    const url = new URL(req.url);
+    const landscape = url.searchParams.get("landscape");
+    const verbose = url.searchParams.get("verbose");
+    const qs = new URLSearchParams();
+    if (landscape) qs.set("landscape", landscape);
+    if (verbose) qs.set("verbose", verbose);
+    const qstring = qs.toString();
+    const backendUrl = `${BACKEND_URL}/api/v1/invoices/${id}/pdf${qstring ? `?${qstring}` : ""}`;
 
     const res = await fetch(backendUrl, { headers: { Authorization: auth } });
     if (!res.ok) {

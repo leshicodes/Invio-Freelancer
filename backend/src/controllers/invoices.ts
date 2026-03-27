@@ -5,6 +5,20 @@ import {
   getDatabase,
   getNextInvoiceNumber,
 } from "../database/init.ts";
+
+/**
+ * Calculate hours from start/end time strings ("HH:MM" 24h).
+ * Handles overnight jobs: if endMin <= startMin, adds 1440 (24h).
+ */
+function calcHoursFromTimes(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return 0;
+  let startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+  if (endMin <= startMin) endMin += 1440; // overnight
+  return Math.round((endMin - startMin) / 60 * 100) / 100;
+}
 import {
   CreateInvoiceRequest,
   Invoice,
@@ -334,6 +348,40 @@ export const createInvoice = (
       lineTotal = (item.quantity ?? 0) * (item.unitPrice ?? 0);
     }
 
+    // If start+end times provided and hours not set, calculate hours from times
+    let effectiveHours = item.hours;
+    if (
+      (!effectiveHours || effectiveHours === 0) &&
+      (item as Record<string, unknown>).serviceStartTime &&
+      (item as Record<string, unknown>).serviceEndTime
+    ) {
+      effectiveHours = calcHoursFromTimes(
+        String((item as Record<string, unknown>).serviceStartTime),
+        String((item as Record<string, unknown>).serviceEndTime),
+      );
+    }
+    // Re-calculate line total with effective hours if they changed
+    if (effectiveHours !== item.hours && effectiveHours && effectiveHours > 0) {
+      let modMulti = 1.0;
+      if (item.rateModifierId) {
+        const mr = db.query(
+          "SELECT multiplier FROM rate_modifiers WHERE id = ?",
+          [item.rateModifierId],
+        ) as unknown[][];
+        if (mr.length > 0) modMulti = Number(mr[0][0]) || 1.0;
+      }
+      let mileageRate2 = 0.725;
+      const mlr = db.query("SELECT value FROM settings WHERE key = 'mileageRate'") as unknown[][];
+      if (mlr.length > 0) mileageRate2 = Number(mlr[0][0]) || 0.725;
+      lineTotal = calculateTimeBasedLineTotal({
+        rate: item.rate || 0,
+        hours: effectiveHours,
+        modifierMultiplier: modMulti,
+        distance: item.distance,
+        mileageRate: mileageRate2,
+      });
+    }
+
     const invoiceItem: InvoiceItem = {
       id: itemId,
       invoiceId: invoiceId,
@@ -343,17 +391,21 @@ export const createInvoice = (
       lineTotal,
       notes: item.notes,
       sortOrder: i,
-      hours: item.hours,
+      hours: effectiveHours,
       rate: item.rate,
       rateModifierId: item.rateModifierId,
       distance: item.distance,
+      serviceDate: (item as Record<string, unknown>).serviceDate as string | undefined,
+      serviceStartTime: (item as Record<string, unknown>).serviceStartTime as string | undefined,
+      serviceEndTime: (item as Record<string, unknown>).serviceEndTime as string | undefined,
     };
 
     db.query(
       `INSERT INTO invoice_items (
         id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
-        hours, rate, rate_modifier_id, distance
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        hours, rate, rate_modifier_id, distance,
+        service_date, service_start_time, service_end_time
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         itemId,
         invoiceId,
@@ -363,10 +415,13 @@ export const createInvoice = (
         lineTotal,
         item.notes,
         i,
-        item.hours ?? null,
+        effectiveHours ?? null,
         item.rate ?? null,
         item.rateModifierId ?? null,
         item.distance ?? null,
+        (item as Record<string, unknown>).serviceDate ?? null,
+        (item as Record<string, unknown>).serviceStartTime ?? null,
+        (item as Record<string, unknown>).serviceEndTime ?? null,
       ],
     );
 
@@ -520,7 +575,8 @@ export const getInvoiceById = (id: string): InvoiceWithDetails | null => {
   const itemsResult = db.query(
     `
     SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
-           hours, rate, rate_modifier_id, distance
+           hours, rate, rate_modifier_id, distance,
+           service_date, service_start_time, service_end_time
     FROM invoice_items 
     WHERE invoice_id = ? 
     ORDER BY sort_order
@@ -541,6 +597,9 @@ export const getInvoiceById = (id: string): InvoiceWithDetails | null => {
     rate: row[9] !== null ? row[9] as number : undefined,
     rateModifierId: row[10] !== null ? row[10] as string : undefined,
     distance: row[11] !== null ? row[11] as number : undefined,
+    serviceDate: row[12] !== null ? row[12] as string : undefined,
+    serviceStartTime: row[13] !== null ? row[13] as string : undefined,
+    serviceEndTime: row[14] !== null ? row[14] as string : undefined,
   }));
 
   // Attach per-item taxes
@@ -628,7 +687,8 @@ export const getInvoiceByShareToken = (
   const itemsResult = db.query(
     `
     SELECT id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
-           hours, rate, rate_modifier_id, distance
+           hours, rate, rate_modifier_id, distance,
+           service_date, service_start_time, service_end_time
     FROM invoice_items 
     WHERE invoice_id = ? 
     ORDER BY sort_order
@@ -649,6 +709,9 @@ export const getInvoiceByShareToken = (
     rate: row[9] !== null ? row[9] as number : undefined,
     rateModifierId: row[10] !== null ? row[10] as string : undefined,
     distance: row[11] !== null ? row[11] as number : undefined,
+    serviceDate: row[12] !== null ? row[12] as string : undefined,
+    serviceStartTime: row[13] !== null ? row[13] as string : undefined,
+    serviceEndTime: row[14] !== null ? row[14] as string : undefined,
   }));
 
   // Attach per-item taxes
@@ -916,12 +979,41 @@ export const updateInvoice = async (
         lineTotal = (item.quantity ?? 0) * (item.unitPrice ?? 0);
       }
 
+      // If start+end times provided and hours not set, calculate hours from times
+      let effectiveHoursU = item.hours;
+      if (
+        (!effectiveHoursU || effectiveHoursU === 0) &&
+        (item as Record<string, unknown>).serviceStartTime &&
+        (item as Record<string, unknown>).serviceEndTime
+      ) {
+        effectiveHoursU = calcHoursFromTimes(
+          String((item as Record<string, unknown>).serviceStartTime),
+          String((item as Record<string, unknown>).serviceEndTime),
+        );
+      }
+      // Re-calculate line total with effective hours if they changed
+      if (effectiveHoursU !== item.hours && effectiveHoursU && effectiveHoursU > 0) {
+        lineTotal = calculateTimeBasedLineTotal({
+          rate: item.rate || 0,
+          hours: effectiveHoursU,
+          modifierMultiplier: 1.0,
+          distance: item.distance,
+          mileageRate: (() => {
+            let mr = 0.725;
+            const res = db.query("SELECT value FROM settings WHERE key = 'mileageRate'") as unknown[][];
+            if (res.length > 0) mr = Number(res[0][0]) || 0.725;
+            return mr;
+          })(),
+        });
+      }
+
       db.query(
         `
         INSERT INTO invoice_items (
           id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
-          hours, rate, rate_modifier_id, distance
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          hours, rate, rate_modifier_id, distance,
+          service_date, service_start_time, service_end_time
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           itemId,
@@ -932,10 +1024,13 @@ export const updateInvoice = async (
           lineTotal,
           item.notes,
           i,
-          item.hours ?? null,
+          effectiveHoursU ?? null,
           item.rate ?? null,
           item.rateModifierId ?? null,
           item.distance ?? null,
+          (item as Record<string, unknown>).serviceDate ?? null,
+          (item as Record<string, unknown>).serviceStartTime ?? null,
+          (item as Record<string, unknown>).serviceEndTime ?? null,
         ],
       );
 
@@ -948,10 +1043,13 @@ export const updateInvoice = async (
         lineTotal,
         notes: item.notes,
         sortOrder: i,
-        hours: item.hours,
+        hours: effectiveHoursU,
         rate: item.rate,
         rateModifierId: item.rateModifierId,
         distance: item.distance,
+        serviceDate: (item as Record<string, unknown>).serviceDate as string | undefined,
+        serviceStartTime: (item as Record<string, unknown>).serviceStartTime as string | undefined,
+        serviceEndTime: (item as Record<string, unknown>).serviceEndTime as string | undefined,
       });
 
       if (perLineCalcUpdate) {
@@ -1062,15 +1160,15 @@ export const duplicateInvoice = async (
   const newId = generateUUID();
   const newShare = generateShareToken();
   const now = new Date();
-  // Start as draft with a draft invoice number; copy descriptive fields, totals will be recalculated from items
+  // Start as draft with a draft invoice number; copy descriptive fields and totals directly from original
   const items = original.items || [];
-  // Recompute totals to avoid stale numbers
-  const totals = calculateInvoiceTotals(
-    items.map((i) => ({ quantity: i.quantity, unitPrice: i.unitPrice })),
-    original.discountPercentage,
-    original.discountAmount,
-    original.taxRate,
-  );
+  // Use original totals directly — they are already correct for time-based and quantity-based items
+  const totals = {
+    subtotal: original.subtotal,
+    discountAmount: original.discountAmount,
+    taxAmount: original.taxAmount,
+    total: original.total,
+  };
   db.query(
     `
     INSERT INTO invoices (
@@ -1103,24 +1201,33 @@ export const duplicateInvoice = async (
       (original as Invoice).roundingMode || "line",
     ],
   );
-  // Copy items
+  // Copy items including all time-based billing fields and service schedule fields
   for (const [idx, it] of items.entries()) {
     const itemId = generateUUID();
     db.query(
       `
       INSERT INTO invoice_items (
-        id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, invoice_id, description, quantity, unit_price, line_total, notes, sort_order,
+        hours, rate, rate_modifier_id, distance,
+        service_date, service_start_time, service_end_time
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
         itemId,
         newId,
         it.description,
-        it.quantity,
-        it.unitPrice,
+        it.quantity ?? null,
+        it.unitPrice ?? null,
         it.lineTotal,
         it.notes || null,
         idx,
+        it.hours ?? null,
+        it.rate ?? null,
+        it.rateModifierId ?? null,
+        it.distance ?? null,
+        it.serviceDate ?? null,
+        it.serviceStartTime ?? null,
+        it.serviceEndTime ?? null,
       ],
     );
   }

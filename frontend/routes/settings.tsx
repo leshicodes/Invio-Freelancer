@@ -5,7 +5,7 @@ import SettingsEnhancements from "../islands/SettingsEnhancements.tsx";
 import SettingsNav from "../islands/SettingsNav.tsx";
 import ThemeToggle from "../islands/ThemeToggle.tsx";
 import ExportAll from "../islands/ExportAll.tsx";
-import RateModifiersManager from "../islands/RateModifiersManager.tsx";
+
 import {
   LuAlertTriangle,
   LuBuilding2,
@@ -157,6 +157,8 @@ export const handler: Handlers<Data & { demoMode: boolean }> = {
       "dateFormat",
       // Number format
       "numberFormat",
+      // PDF export orientation
+      "pdfLandscape",
     ];
     // Collect values; handle duplicate hidden + checkbox pattern (want last value = actual state)
     for (const f of fields) {
@@ -167,7 +169,7 @@ export const handler: Handlers<Data & { demoMode: boolean }> = {
       payload[f] = chosen;
     }
     // Normalize boolean-style toggles to explicit "true"/"false" strings
-    ["embedXmlInPdf", "embedXmlInHtml", "invoiceNumberingEnabled"].forEach((k) => {
+    ["embedXmlInPdf", "embedXmlInHtml", "invoiceNumberingEnabled", "pdfLandscape"].forEach((k) => {
       if (k in payload) {
         const v = String(payload[k]).toLowerCase();
         payload[k] = v === "true" ? "true" : "false";
@@ -212,6 +214,7 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
   const xmlProfileId = (s.xmlProfileId as string) || 'ubl21';
   const embedXmlInPdf = String(s.embedXmlInPdf || 'false').toLowerCase() === 'true';
   const embedXmlInHtml = String(s.embedXmlInHtml || 'false').toLowerCase() === 'true';
+  const pdfLandscape = String(s.pdfLandscape || 'false').toLowerCase() === 'true';
   const currentLocale = (s.locale as string) || "en";
   const localeOptions = [
     { value: "en", labelKey: "English" },
@@ -231,7 +234,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
     "templates",
     "payments",
     "tax",
-    "rate-modifiers",
     "numbering",
     "xml",
     "export",
@@ -272,7 +274,7 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
               templates: t("Templates"),
               payments: t("Payments"),
               tax: t("Tax"),
-              "rate-modifiers": "Rate Modifiers",
+
               numbering: t("Numbering"),
               xml: t("XML Export"),
               export: t("Export"),
@@ -287,7 +289,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
             { value: link("templates"), label: t("Templates"), icon: LuLayoutTemplate, show: hasTemplates },
             { value: link("payments"), label: t("Payments"), icon: LuCreditCard },
             { value: link("tax"), label: t("Tax"), icon: LuPercent },
-            { value: link("rate-modifiers"), label: "Rate Modifiers", icon: LuSettings },
             { value: link("numbering"), label: t("Numbering"), icon: LuHash },
             { value: link("xml"), label: t("XML Export"), icon: LuFileCode2 },
             { value: link("export"), label: t("Export"), icon: LuDownload },
@@ -341,12 +342,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
               <a href={link("tax")} class={section === "tax" ? "active" : undefined}>
                 <LuPercent size={20} class="mr-2" />
                 {t("Tax")}
-              </a>
-            </li>
-            <li>
-              <a href={link("rate-modifiers")} class={section === "rate-modifiers" ? "active" : undefined}>
-                <LuSettings size={20} class="mr-2" />
-                Rate Modifiers
               </a>
             </li>
             <li>
@@ -622,19 +617,6 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
             </form>
           )}
 
-          {section === "rate-modifiers" && (
-            <div class="space-y-4">
-              <div>
-                <h2 class="text-xl font-semibold mb-2">Rate Modifiers</h2>
-                <p class="text-sm opacity-70">
-                  Configure multipliers for different types of work (Standard, Holiday, Overnight, etc.). 
-                  These will be available as options when creating invoices.
-                </p>
-              </div>
-              <RateModifiersManager />
-            </div>
-          )}
-
           {section === "numbering" && (
             <form method="post" class="space-y-4" data-writable>
               <h2 class="text-xl font-semibold">{t("Invoice Numbering")}</h2>
@@ -695,6 +677,17 @@ export default function SettingsPage(props: PageProps<Data & { demoMode: boolean
                       <input type="hidden" name="embedXmlInHtml" value="false" />
                       <input type="checkbox" name="embedXmlInHtml" value="true" class="toggle toggle-primary" checked={embedXmlInHtml} />
                       <span class="text-xs opacity-70">{t("Adds selected XML as an HTML attachment")}</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                  <label class="form-control">
+                    <div class="label flex justify-between"><span class="label-text">{t("Landscape PDF by default")}</span></div>
+                    <div class="flex items-center gap-3 mt-1">
+                      <input type="hidden" name="pdfLandscape" value="false" />
+                      <input type="checkbox" name="pdfLandscape" value="true" class="toggle toggle-primary" checked={pdfLandscape} />
+                      <span class="text-xs opacity-70">{t("Generate PDFs in landscape orientation")}</span>
                     </div>
                   </label>
                 </div>

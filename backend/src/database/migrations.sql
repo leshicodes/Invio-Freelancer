@@ -28,7 +28,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('peppolBuyerEndpointId', ''),
   ('peppolBuyerEndpointSchemeId', ''),
   -- Mileage rate for time-based billing (default federal standard rate)
-  ('mileageRate', '0.70');
+  ('mileageRate', '0.725'),
+  -- PDF landscape mode (global default; per-invoice override via query param)
+  ('pdfLandscape', 'false');
 
 -- Rate modifiers for time-based billing (e.g., Holiday, Weekend, Overnight)
 CREATE TABLE IF NOT EXISTS rate_modifiers (
@@ -101,7 +103,11 @@ CREATE TABLE invoice_items (
   hours NUMERIC DEFAULT 0,
   rate NUMERIC DEFAULT 0,
   rate_modifier_id TEXT REFERENCES rate_modifiers(id),
-  distance NUMERIC DEFAULT 0
+  distance NUMERIC DEFAULT 0,
+  -- Service schedule fields
+  service_date TEXT,
+  service_start_time TEXT,
+  service_end_time TEXT
 );
 
 -- Invoice attachments (optional)

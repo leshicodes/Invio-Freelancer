@@ -777,6 +777,15 @@ adminRoutes.get("/invoices/:id/pdf", async (c) => {
     const embedXml =
       String(settingsMap.embedXmlInPdf || "false").toLowerCase() === "true";
     const xmlProfileId = settingsMap.xmlProfileId || "ubl21";
+    // Resolve landscape: query param overrides global setting
+    const qLandscape = c.req.query("landscape");
+    const globalLandscape =
+      String(settingsMap.pdfLandscape || "false").toLowerCase() === "true";
+    const landscape = qLandscape !== undefined
+      ? (qLandscape === "1" || qLandscape === "true")
+      : globalLandscape;
+    const qVerbose = c.req.query("verbose");
+    const verbose = qVerbose === "1" || qVerbose === "true";
     const pdfBuffer = await generatePDF(
       invoice,
       businessSettings,
@@ -788,6 +797,8 @@ adminRoutes.get("/invoices/:id/pdf", async (c) => {
         dateFormat: settingsMap.dateFormat,
         numberFormat: settingsMap.numberFormat,
         locale: settingsMap.locale,
+        landscape,
+        verbose,
       },
     );
     // Detect embedded attachments for diagnostics

@@ -330,6 +330,24 @@ export default function InvoiceDetail(props: PageProps<Data>) {
                 </li>
                 <li>
                   <a
+                    href={`/invoices/${inv.id}/pdf?landscape=true`}
+                    class="flex items-center gap-2"
+                  >
+                    <LuDownload size={16} />
+                    Download PDF (Landscape)
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={`/invoices/${inv.id}/pdf?verbose=true`}
+                    class="flex items-center gap-2"
+                  >
+                    <LuDownload size={16} />
+                    Download PDF (Verbose)
+                  </a>
+                </li>
+                <li>
+                  <a
                     href={`/invoices/${inv.id}/xml`}
                     target="_blank"
                     title="Download XML (uses default profile from Settings)"
@@ -528,13 +546,42 @@ export default function InvoiceDetail(props: PageProps<Data>) {
               <LuFileCode2 size={16} />
               View HTML
             </a>
-            <a
-              class="btn btn-sm btn-primary"
-              href={`/invoices/${inv.id}/pdf`}
-            >
-              <LuDownload size={16} />
-              Download PDF
-            </a>
+            <div class="dropdown dropdown-end">
+              <div tabIndex={0} role="button" class="btn btn-sm btn-primary">
+                <LuDownload size={16} />
+                Download PDF
+              </div>
+              <ul
+                tabIndex={0}
+                class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-2 w-56 p-2 shadow"
+              >
+                <li>
+                  <a href={`/invoices/${inv.id}/pdf`} class="flex items-center gap-2">
+                    <LuDownload size={14} />
+                    Portrait
+                  </a>
+                </li>
+                <li>
+                  <a href={`/invoices/${inv.id}/pdf?landscape=true`} class="flex items-center gap-2">
+                    <LuDownload size={14} />
+                    Landscape
+                  </a>
+                </li>
+                <li><div class="menu-title text-xs opacity-50 px-2 pt-1">Detailed breakdown</div></li>
+                <li>
+                  <a href={`/invoices/${inv.id}/pdf?verbose=true`} class="flex items-center gap-2">
+                    <LuDownload size={14} />
+                    Portrait + Verbose
+                  </a>
+                </li>
+                <li>
+                  <a href={`/invoices/${inv.id}/pdf?landscape=true&verbose=true`} class="flex items-center gap-2">
+                    <LuDownload size={14} />
+                    Landscape + Verbose
+                  </a>
+                </li>
+              </ul>
+            </div>
             {/* Public share link (visible when published i.e., not draft) */}
             {inv.status && inv.status !== "draft" && inv.shareToken && (
               <a

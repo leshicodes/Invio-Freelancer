@@ -354,6 +354,40 @@ function ensureSchemaUpgrades(database: DB) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure invoice_items has service schedule columns
+    const iiCols = database.query(
+      "PRAGMA table_info(invoice_items)",
+    ) as unknown[] as Array<unknown[]>;
+    const iiNames = new Set(iiCols.map((r) => String(r[1])));
+    for (const col of ["service_date", "service_start_time", "service_end_time"]) {
+      if (!iiNames.has(col)) {
+        try {
+          database.execute(`ALTER TABLE invoice_items ADD COLUMN ${col} TEXT`);
+          console.log(`✅ Added invoice_items.${col} column`);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!/duplicate column|already exists/i.test(msg)) {
+            console.warn(`Could not add invoice_items.${col}:`, msg);
+          }
+        }
+      }
+    }
+
+    // Ensure pdfLandscape setting exists
+    try {
+      database.execute(
+        "INSERT OR IGNORE INTO settings (key, value) VALUES ('pdfLandscape', 'false')",
+      );
+    } catch { /* ignore */ }
+
+    // Migrate mileage rate from legacy 0.70 to 0.725
+    try {
+      database.execute(
+        "UPDATE settings SET value = '0.725' WHERE key = 'mileageRate' AND value = '0.70'",
+      );
+    } catch { /* ignore */ }
+
   } catch (e) {
     console.warn("Schema upgrade check failed:", e);
   }
